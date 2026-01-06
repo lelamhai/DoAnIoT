@@ -1,0 +1,23 @@
+# MQTT Broker Configuration
+
+mqtt:
+  broker: "test.mosquitto.org"  # Public MQTT broker for testing
+  port: 1883
+  topic: "iot/security/pir/nhom03"  # Nhóm 03 - Hoàng Minh
+  qos: 1  # Quality of Service (0, 1, 2)
+  username: null  # Để null nếu không cần authentication
+  password: null
+  client_id: "iot_security_client_nhom03"
+  keep_alive: 60  # seconds
+
+# Alternative: HiveMQ Cloud (free tier)
+# mqtt:
+#   broker: "broker.hivemq.com"
+#   port: 1883
+#   topic: "iot/security/pir/nhom01"
+
+# Alternative: Local Mosquitto
+# mqtt:
+#   broker: "localhost"
+#   port: 1883
+#   topic: "iot/security/pir"

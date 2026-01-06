@@ -1,0 +1,20 @@
+# Database Configuration
+
+database:
+  path: "data/security.db"
+  backup_enabled: true
+  backup_path: "data/backups/"
+  auto_backup_interval: 3600  # seconds (1 hour)
+  
+# Table schemas
+schemas:
+  events:
+    - id: INTEGER PRIMARY KEY AUTOINCREMENT
+    - timestamp: TEXT NOT NULL
+    - motion: INTEGER NOT NULL
+    - sensor_id: TEXT
+    - location: TEXT
+    - prediction: TEXT
+    - alert_level: TEXT
+    - confidence: REAL
+    - created_at: TEXT DEFAULT CURRENT_TIMESTAMP

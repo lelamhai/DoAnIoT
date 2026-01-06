@@ -1,38 +1,27 @@
 /*
  * ESP32 PIR Motion Sensor + MQTT Publisher
- * 
- * Hardware:
- * - PIR HC-SR501 → GPIO 27
- * - Relay Module → GPIO 26
- * 
- * Features:
- * - WiFi connection
- * - MQTT publish motion events
- * - Relay control for alarm/speaker
- * - Auto-reconnect WiFi & MQTT
- * 
- * Author: IoT Security Project Team
- * Date: January 6, 2026
+ * PlatformIO Version
  */
 
+#include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <time.h>
 
 // ==================== CONFIGURATION ====================
 // Pin Definitions
-#define PIR_PIN    27    // PIR sensor output → GPIO27
-#define RELAY_PIN  26    // Relay control for alarm → GPIO26
+#define PIR_PIN    27    // PIR sensor output
+#define RELAY_PIN  26    // Relay control for alarm
 
 // WiFi Credentials (ĐÃ CẤU HÌNH)
-const char* WIFI_SSID = "Hoang Minh";      // Tên WiFi
-const char* WIFI_PASSWORD = "99999999";    // Mật khẩu WiFi
+const char* WIFI_SSID = "Hoang Minh";
+const char* WIFI_PASSWORD = "99999999";
 
 // MQTT Broker Settings (ĐÃ CẤU HÌNH CHO NHÓM 03)
-const char* MQTT_BROKER = "test.mosquitto.org";    // Public MQTT broker
+const char* MQTT_BROKER = "test.mosquitto.org";
 const int MQTT_PORT = 1883;
-const char* MQTT_TOPIC = "iot/security/pir/nhom03";  // Topic cho nhóm 03
-const char* MQTT_CLIENT_ID = "ESP32_Nhom03_HoangMinh";  // Client ID unique
+const char* MQTT_TOPIC = "iot/security/pir/nhom03";
+const char* MQTT_CLIENT_ID = "ESP32_Nhom03_HoangMinh";
 
 // NTP Server for timestamp
 const char* NTP_SERVER = "pool.ntp.org";
@@ -40,8 +29,8 @@ const long GMT_OFFSET = 7 * 3600;  // GMT+7 for Vietnam
 const int DAYLIGHT_OFFSET = 0;
 
 // Timing
-const unsigned long PUBLISH_INTERVAL = 200;  // milliseconds
-const unsigned long RECONNECT_DELAY = 5000;   // milliseconds
+const unsigned long PUBLISH_INTERVAL = 200;
+const unsigned long RECONNECT_DELAY = 5000;
 
 // ==================== GLOBAL OBJECTS ====================
 WiFiClient espClient;
@@ -63,51 +52,36 @@ void handleMotion();
 
 // ==================== SETUP ====================
 void setup() {
-  // Initialize Serial
   Serial.begin(115200);
   delay(1000);
   Serial.println("\n\n=================================");
   Serial.println("ESP32 IoT Security System");
   Serial.println("=================================\n");
 
-  // Configure Pins
   pinMode(PIR_PIN, INPUT);
   pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW);  // Turn off relay initially
+  digitalWrite(RELAY_PIN, LOW);
   Serial.println("✓ GPIO pins configured");
 
-  // Setup WiFi
   setupWiFi();
-
-  // Setup MQTT
   setupMQTT();
-
-  // Initialize time
   configTime(GMT_OFFSET, DAYLIGHT_OFFSET, NTP_SERVER);
   Serial.println("✓ NTP time configured");
-
   Serial.println("\n✓ System ready!\n");
 }
 
 // ==================== MAIN LOOP ====================
 void loop() {
-  // Ensure WiFi connection
   if (WiFi.status() != WL_CONNECTED) {
     reconnectWiFi();
   }
 
-  // Ensure MQTT connection
   if (!mqttClient.connected()) {
     reconnectMQTT();
   }
 
-  // Process MQTT messages
   mqttClient.loop();
-
-  // Handle motion detection
   handleMotion();
-
-  // Small delay to prevent flooding
   delay(50);
 }
 
@@ -135,7 +109,6 @@ void setupWiFi() {
     Serial.println(" dBm");
   } else {
     Serial.println("\n✗ WiFi connection failed!");
-    Serial.println("  Please check SSID and password");
   }
 }
 
@@ -162,17 +135,13 @@ void setupMQTT() {
 void reconnectMQTT() {
   if (millis() - lastReconnectAttempt > RECONNECT_DELAY) {
     lastReconnectAttempt = millis();
-
     Serial.print("Connecting to MQTT broker... ");
 
     if (mqttClient.connect(MQTT_CLIENT_ID)) {
       Serial.println("✓ Connected!");
-      
-      // Publish initial message
       String payload = "{\"timestamp\":\"" + getTimestamp() + 
                       "\",\"motion\":0,\"status\":\"online\"}";
       mqttClient.publish(MQTT_TOPIC, payload.c_str());
-      
     } else {
       Serial.print("✗ Failed! RC=");
       Serial.println(mqttClient.state());
@@ -185,22 +154,18 @@ void handleMotion() {
   int currentMotionState = digitalRead(PIR_PIN);
   unsigned long currentTime = millis();
 
-  // Check if state changed or publish interval elapsed
   bool stateChanged = (currentMotionState != lastMotionState);
   bool intervalElapsed = (currentTime - lastPublishTime >= PUBLISH_INTERVAL);
 
   if (stateChanged || (currentMotionState == HIGH && intervalElapsed)) {
-    
-    // Control relay based on motion
     if (currentMotionState == HIGH) {
-      digitalWrite(RELAY_PIN, HIGH);  // Activate alarm
+      digitalWrite(RELAY_PIN, HIGH);
       Serial.println("🔴 MOTION DETECTED!");
     } else {
-      digitalWrite(RELAY_PIN, LOW);   // Deactivate alarm
+      digitalWrite(RELAY_PIN, LOW);
       Serial.println("🟢 No motion");
     }
 
-    // Publish to MQTT
     if (mqttClient.connected()) {
       publishMotionEvent(currentMotionState);
       lastPublishTime = currentTime;
@@ -211,7 +176,6 @@ void handleMotion() {
 }
 
 void publishMotionEvent(int motion) {
-  // Create JSON payload
   String payload = "{";
   payload += "\"timestamp\":\"" + getTimestamp() + "\",";
   payload += "\"motion\":" + String(motion) + ",";
@@ -219,7 +183,6 @@ void publishMotionEvent(int motion) {
   payload += "\"location\":\"living_room\"";
   payload += "}";
 
-  // Publish to MQTT
   bool success = mqttClient.publish(MQTT_TOPIC, payload.c_str());
 
   if (success) {
@@ -234,7 +197,7 @@ void publishMotionEvent(int motion) {
 String getTimestamp() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
-    return "2026-01-06T00:00:00Z";  // Fallback
+    return "2026-01-06T00:00:00Z";
   }
 
   char buffer[30];

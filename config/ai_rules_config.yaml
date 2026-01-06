@@ -1,0 +1,92 @@
+# AI Classification Rules Configuration
+# Dùng cho Demo - Có thể customize dễ dàng
+
+classification_rules:
+  # Rule 1: Đêm khuya (1h - 5h sáng)
+  night_hours:
+    enabled: true
+    start_hour: 1
+    end_hour: 5
+    label: "SUSPICIOUS"
+    confidence: 0.95
+    alert_level: "CRITICAL"
+    message: "Phát hiện chuyển động bất thường vào đêm khuya"
+  
+  # Rule 2: Giờ làm việc (9h - 17h, Thứ 2-6)
+  work_hours:
+    enabled: true
+    start_hour: 9
+    end_hour: 17
+    weekdays_only: true  # Chỉ áp dụng Thứ 2-6
+    label: "SUSPICIOUS"
+    confidence: 0.7
+    alert_level: "WARNING"
+    message: "Phát hiện chuyển động trong giờ làm việc (lẽ ra không ai nhà)"
+  
+  # Rule 3: Chuyển động quá nhanh (nhiễu/côn trùng)
+  rapid_motion:
+    enabled: true
+    frequency_threshold: 30  # Số lần phát hiện trong 1 phút
+    duration_max: 2  # Giây
+    label: "NOISE"
+    confidence: 0.6
+    alert_level: "SAFE"
+    message: "Có thể là nhiễu hoặc côn trùng"
+  
+  # Rule 4: Chuyển động kéo dài bất thường
+  prolonged_motion:
+    enabled: true
+    duration_min: 600  # 10 phút
+    label: "SUSPICIOUS"
+    confidence: 0.8
+    alert_level: "WARNING"
+    message: "Chuyển động kéo dài bất thường (có thể quên tắt hoặc có người lạ)"
+
+# Thời gian bình thường (cho demo)
+normal_patterns:
+  # Sáng (6h - 9h): Chuẩn bị đi làm
+  morning:
+    start_hour: 6
+    end_hour: 9
+    typical_frequency: 10-20  # Lần/5 phút
+    typical_duration: 2-5  # Giây
+  
+  # Tối (18h - 23h): Sinh hoạt
+  evening:
+    start_hour: 18
+    end_hour: 23
+    typical_frequency: 15-30
+    typical_duration: 3-10
+  
+  # Cuối tuần: Cả ngày
+  weekend:
+    start_hour: 8
+    end_hour: 22
+    typical_frequency: 20-40
+    typical_duration: 5-15
+
+# Demo scenarios (để test trước khách hàng)
+demo_scenarios:
+  scenario_1:
+    name: "Chuyển động bình thường ban ngày"
+    hour: 20
+    day_of_week: 1  # Thứ 2
+    frequency: 15
+    duration: 5
+    expected_result: "NORMAL"
+  
+  scenario_2:
+    name: "Phát hiện trộm đêm khuya"
+    hour: 3
+    day_of_week: 3
+    frequency: 8
+    duration: 30
+    expected_result: "SUSPICIOUS - CRITICAL"
+  
+  scenario_3:
+    name: "Có người khi đang đi làm"
+    hour: 14
+    day_of_week: 2  # Thứ 3
+    frequency: 12
+    duration: 20
+    expected_result: "SUSPICIOUS - WARNING"
