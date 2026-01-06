@@ -1,18 +1,114 @@
-1. Tên đề tài 
-Hệ thống giám sát an ninh bằng cảm biến chuyển động PIR (mô phỏng) 
-2. Nội dung lý thuyết - Kiến trúc IoT nhiều lớp: cảm biến (PIR) → mạng (MQTT) → cloud → 
-dashboard. - Nguyên lý cảm biến PIR: phát hiện chuyển động dựa trên bức xạ hồng 
-ngoại từ cơ thể người. - Cơ chế giám sát an ninh: khi phát hiện chuyển động → gửi tín hiệu cảnh 
-báo. - Giao thức MQTT: truyền sự kiện 0/1 (không có chuyển động / có chuyển 
-động). - Lưu trữ dữ liệu sự kiện: cloud hoặc file log. - Ứng dụng AI: phân loại hành vi bình thường (người trong nhà) và bất 
-thường (xâm nhập ngoài giờ). 
-3. Nội dung thực hành - Bước 1: Mô phỏng dữ liệu PIR bằng Node-RED hoặc Python (0 = không 
-có chuyển động, 1 = có chuyển động). - Bước 2: Publish dữ liệu lên MQTT Broker với topic ví dụ 
-'iot/nhomXX/security/pir'. - Bước 3: Subscriber nhận dữ liệu và hiển thị trên dashboard (trạng thái 
-phòng: An toàn / Cảnh báo). - Bước 4: Thiết lập cảnh báo (icon đỏ, còi ảo, hoặc notification) khi có 
-chuyển động bất thường. - Bước 5: Log dữ liệu sự kiện (CSV hoặc database). - Bước 6: (Tùy chọn) áp dụng mô hình AI classification để phân biệt chuyển 
-động hợp lệ/bất thường. 
-4. Dataset - Dữ liệu mô phỏng: binary (0/1) kèm timestamp. - Ví dụ JSON: 
-{ "timestamp": "2025-09-10T09:30:00Z", "motion": 1 } - Dataset tham khảo: UCI Human Activity Recognition (HAR). - Ứng dụng AI: Logistic Regression, Decision Tree để phân loại hoạt động. 
-5. Yêu cầu nhóm và học viên - Nghiên cứu nguyên lý PIR và ứng dụng trong IoT an ninh. - Hoàn thành mô hình mô phỏng PIR → Broker → Dashboard. - Dashboard phải hiển thị trạng thái phòng và cảnh báo. - Có log dữ liệu sự kiện an ninh. - Nộp báo cáo mô tả kiến trúc, biểu đồ trạng thái, demo tình huống xâm 
-nhập. - (Tùy chọn) AI classification để phân biệt hành vi hợp lệ/bất thường.
+# 🚀 IoT SECURITY MONITORING - PHIÊN BẢN ĐƠN GIẢN
+
+Hệ thống giám sát an ninh IoT với 3 module độc lập, dễ sử dụng.
+
+---
+
+## ⚡ QUICK START (3 BƯỚC)
+
+### **1. Train AI Model** (Chạy 1 lần đầu)
+```bash
+python 1_TRAIN_MODEL.py
+```
+
+### **2. Chạy Backend** (Terminal 1)
+```bash
+python 2_BACKEND.py
+```
+
+### **3. Chạy Dashboard** (Terminal 2)
+```bash
+python 3_FRONTEND.py
+```
+
+Mở browser: `http://localhost:8501`
+
+---
+
+## 📦 CÀI ĐẶT
+
+```bash
+pip install paho-mqtt pandas numpy scikit-learn streamlit plotly pyyaml
+python scripts/setup_database.py
+python 1_TRAIN_MODEL.py
+```
+
+---
+
+## 🎯 3 MODULE CHÍNH
+
+| Module | File | Nhiệm vụ |
+|--------|------|----------|
+| **1. Train AI** | `1_TRAIN_MODEL.py` | Train model khi đổi config thời gian |
+| **2. Backend** | `2_BACKEND.py` | Nhận MQTT → Lưu Database |
+| **3. Frontend** | `3_FRONTEND.py` | Hiển thị dashboard |
+
+---
+
+## ⚙️ ĐỔI THỜI GIAN SUSPICIOUS
+
+1. Sửa: `config/time_config.yaml`
+2. Chạy: `python 1_TRAIN_MODEL.py`
+3. Restart: `python 2_BACKEND.py`
+
+**Config hiện tại:** 15h-18h = SUSPICIOUS
+
+---
+
+## 📁 CẤU TRÚC PROJECT
+
+```
+DoAnIoT/
+├── 1_TRAIN_MODEL.py          ← MODULE 1: Train AI
+├── 2_BACKEND.py               ← MODULE 2: Backend
+├── 3_FRONTEND.py              ← MODULE 3: Dashboard
+│
+├── config/
+│   └── time_config.yaml       ← Config thời gian
+│
+├── backend/
+│   └── simple_main.py         ← Backend chính
+│
+├── frontend/
+│   └── app.py                 ← Dashboard
+│
+├── ai_model/
+│   ├── data_generator.py
+│   └── models/
+│       └── classifier.pkl     ← AI model
+│
+├── data/
+│   └── security.db            ← Database
+│
+└── logs/
+    └── events.csv             ← CSV logs
+```
+
+---
+
+## 🔄 LUỒNG DỮ LIỆU
+
+```
+ESP32 (PIR Sensor)
+      ↓
+MQTT Broker
+      ↓
+Backend (2_BACKEND.py)
+      ↓
+Database + CSV
+      ↓
+Dashboard (3_FRONTEND.py)
+```
+
+---
+
+## 📖 Tài liệu chi tiết
+
+- [README_SIMPLE.md](README_SIMPLE.md) - Hướng dẫn đầy đủ
+- [system.md](system.md) - Kiến trúc hệ thống
+- [Đề bài gốc](README_ORIGINAL.md)
+
+---
+
+**Version:** 2.0 - Simplified  
+**Date:** January 6, 2026

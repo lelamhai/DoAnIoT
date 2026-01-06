@@ -7,6 +7,19 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from pathlib import Path
+import yaml
+
+
+def load_time_config():
+    """Load time configuration from YAML file"""
+    config_path = Path("config/time_config.yaml")
+    if config_path.exists():
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        return config['time_rules']['suspicious_hours']
+    else:
+        # Default fallback
+        return {'start': 15, 'end': 18}
 
 
 def generate_training_data(n_samples: int = 500, output_path: str = "ai_model/datasets/training_data.csv"):
@@ -22,6 +35,13 @@ def generate_training_data(n_samples: int = 500, output_path: str = "ai_model/da
     """
     print(f"Generating {n_samples} training samples...")
     
+    # Load time configuration
+    time_config = load_time_config()
+    suspicious_start = time_config['start']  # 15
+    suspicious_end = time_config['end']      # 18
+    
+    print(f"   Using time config: SUSPICIOUS hours = {suspicious_start}h-{suspicious_end}h")
+    
     data = []
     start_date = datetime(2026, 1, 1, 0, 0, 0)
     
@@ -34,74 +54,26 @@ def generate_training_data(n_samples: int = 500, output_path: str = "ai_model/da
         timestamp = start_date + timedelta(days=days_offset, hours=hour, minutes=minute)
         day_of_week = timestamp.weekday()  # 0=Monday, 6=Sunday
         
-        # Tạo patterns realistic
+        # Tạo patterns dựa trên time config
         
-        # NORMAL PATTERNS
-        # 1. Sáng (6h-9h) - đi làm
-        if 6 <= hour <= 9:
+        # SUSPICIOUS PATTERNS (15h-18h)
+        if suspicious_start <= hour < suspicious_end:
             motion = np.random.choice([0, 1], p=[0.2, 0.8])  # 80% có chuyển động
-            label = 0  # Normal
-            frequency = np.random.randint(10, 25)  # Tần suất cao
-            duration = np.random.uniform(2, 8)  # 2-8 giây
+            if motion == 1:
+                label = 1  # SUSPICIOUS - chuyển động trong 15h-18h
+                frequency = np.random.randint(15, 35)
+                duration = np.random.uniform(10, 60)  # Lâu hơn
+            else:
+                label = 0  # Normal - không có chuyển động
+                frequency = 0
+                duration = 0
         
-        # 2. Tối (18h-23h) - sinh hoạt
-        elif 18 <= hour <= 23:
+        # NORMAL PATTERNS (ngoài 15h-18h)
+        else:
             motion = np.random.choice([0, 1], p=[0.3, 0.7])  # 70% có chuyển động
             label = 0  # Normal
-            frequency = np.random.randint(15, 35)
-            duration = np.random.uniform(3, 12)
-        
-        # 3. Cuối tuần ban ngày (8h-22h)
-        elif day_of_week >= 5 and 8 <= hour <= 22:
-            motion = np.random.choice([0, 1], p=[0.25, 0.75])  # 75% có chuyển động
-            label = 0  # Normal
-            frequency = np.random.randint(20, 45)
-            duration = np.random.uniform(5, 20)
-        
-        # 4. Giờ làm việc (9h-17h) ngày thường - ít chuyển động
-        elif day_of_week < 5 and 9 <= hour <= 17:
-            motion = np.random.choice([0, 1], p=[0.95, 0.05])  # 95% không có
-            if motion == 1:
-                label = 1  # SUSPICIOUS - có người khi đang đi làm
-                frequency = np.random.randint(5, 15)
-                duration = np.random.uniform(10, 60)
-            else:
-                label = 0  # Normal
-                frequency = 0
-                duration = 0
-        
-        # SUSPICIOUS PATTERNS
-        # 5. Đêm khuya (1h-5h)
-        elif 1 <= hour <= 5:
-            motion = np.random.choice([0, 1], p=[0.9, 0.1])  # 90% không có
-            if motion == 1:
-                label = 1  # SUSPICIOUS - chuyển động đêm khuya
-                frequency = np.random.randint(3, 12)
-                duration = np.random.uniform(15, 90)  # Lâu hơn bình thường
-            else:
-                label = 0  # Normal
-                frequency = 0
-                duration = 0
-        
-        # 6. Nửa đêm (23h-1h)
-        elif hour == 23 or hour == 0:
-            motion = np.random.choice([0, 1], p=[0.7, 0.3])
-            if motion == 1:
-                # 50% suspicious, 50% normal (có thể ngủ muộn)
-                label = np.random.choice([0, 1], p=[0.5, 0.5])
-                frequency = np.random.randint(5, 20)
-                duration = np.random.uniform(3, 15)
-            else:
-                label = 0
-                frequency = 0
-                duration = 0
-        
-        # Default
-        else:
-            motion = np.random.choice([0, 1], p=[0.6, 0.4])
-            label = 0
-            frequency = np.random.randint(5, 20)
-            duration = np.random.uniform(2, 10)
+            frequency = np.random.randint(10, 30)  # Tần suất bình thường
+            duration = np.random.uniform(3, 12)  # 3-12 giây
         
         # Add noise - realistic imperfections
         if np.random.random() < 0.05:  # 5% noise
@@ -113,7 +85,7 @@ def generate_training_data(n_samples: int = 500, output_path: str = "ai_model/da
             'hour': hour,
             'day_of_week': day_of_week,
             'is_weekend': 1 if day_of_week >= 5 else 0,
-            'is_night': 1 if (hour >= 22 or hour <= 6) else 0,
+            'is_night': 1 if (suspicious_start <= hour < suspicious_end) else 0,
             'frequency_5min': frequency,
             'duration': duration,
             'label': label  # 0=Normal, 1=Suspicious

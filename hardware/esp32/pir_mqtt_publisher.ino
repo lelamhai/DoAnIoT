@@ -28,10 +28,10 @@
 const char* WIFI_SSID = "Hoang Minh";      // Tên WiFi
 const char* WIFI_PASSWORD = "99999999";    // Mật khẩu WiFi
 
-// MQTT Broker Settings (ĐÃ CẤU HÌNH CHO NHÓM 03)
-const char* MQTT_BROKER = "test.mosquitto.org";    // Public MQTT broker
+// MQTT Broker Settings (ĐÃ FIX - MATCH VỚI BACKEND)
+const char* MQTT_BROKER = "broker.hivemq.com";    // HiveMQ public broker
 const int MQTT_PORT = 1883;
-const char* MQTT_TOPIC = "iot/security/pir/nhom03";  // Topic cho nhóm 03
+const char* MQTT_TOPIC = "iot/security/pir";  // Topic giống backend
 const char* MQTT_CLIENT_ID = "ESP32_Nhom03_HoangMinh";  // Client ID unique
 
 // NTP Server for timestamp

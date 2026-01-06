@@ -7,12 +7,26 @@ import pandas as pd
 from datetime import datetime
 from typing import List, Dict
 from backend.core.models import MotionEvent
+import yaml
+from pathlib import Path
 
 
 class FeatureEngineer:
     """
     Extract và transform features từ motion events
     """
+    
+    @staticmethod
+    def load_time_config():
+        """Load time configuration from YAML file"""
+        config_path = Path("config/time_config.yaml")
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            return config['features']['is_suspicious_definition']
+        else:
+            # Default fallback
+            return {'suspicious_start': 15, 'suspicious_end': 18}
     
     @staticmethod
     def extract_time_features(timestamp: datetime) -> Dict:
@@ -25,11 +39,16 @@ class FeatureEngineer:
         Returns:
             Dictionary với time features
         """
+        # Load time config
+        time_config = FeatureEngineer.load_time_config()
+        suspicious_start = time_config['suspicious_start']
+        suspicious_end = time_config['suspicious_end']
+        
         return {
             'hour': timestamp.hour,
             'day_of_week': timestamp.weekday(),
             'is_weekend': 1 if timestamp.weekday() >= 5 else 0,
-            'is_night': 1 if (timestamp.hour >= 22 or timestamp.hour <= 6) else 0,
+            'is_night': 1 if (suspicious_start <= timestamp.hour < suspicious_end) else 0,
             'is_morning': 1 if 6 <= timestamp.hour <= 9 else 0,
             'is_evening': 1 if 18 <= timestamp.hour <= 23 else 0,
             'is_work_hours': 1 if (timestamp.weekday() < 5 and 9 <= timestamp.hour <= 17) else 0
