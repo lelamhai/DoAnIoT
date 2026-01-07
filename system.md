@@ -48,23 +48,15 @@
 │      │                                                         │
 │      ├──────┐                                                  │
 │      │      ▼                                                  │
-│      │  ┌────────────────┐    ┌─────────────────┐             │
-│      │  │ Data Processor │───▶│  Feature Eng.   │             │
-│      │  │ - Validation   │    │  - hour_of_day  │             │
-│      │  │ - Transform    │    │  - frequency    │             │
-│      │  └────────────────┘    │  - duration     │             │
-│      │                        └────────┬────────┘             │
-│      │                                 │                      │
-│      │                                 ▼                      │
-│      │                        ┌─────────────────┐             │
-│      │                        │  AI Classifier  │             │
-│      │                        │ (Decision Tree) │             │
-│      │                        │ Normal/Abnormal │             │
-│      │                        └────────┬────────┘             │
-│      │                                 │                      │
-│      └─────────┬───────────────────────┘                      │
-│                │                                               │
-│                ▼                                               │
+│      │  ┌────────────────┐                                    │
+│      │  │ Data Processor │                                    │
+│      │  │ - Validation   │                                    │
+│      │  │ - Transform    │                                    │
+│      │  └────────┬───────┘                                    │
+│      │           │                                             │
+│      └───────────┘                                             │
+│                                                                │
+│                                                                │
 │   ┌────────────────────────┐                                  │
 │   │  Storage Service       │                                  │
 │   │  - SQLite DB           │                                  │
@@ -138,8 +130,6 @@ DoAnIoT/
 │   │   ├── __init__.py
 │   │   ├── mqtt_service.py             # MQTT pub/sub logic
 │   │   ├── data_processor.py           # Data validation & transform
-│   │   ├── feature_engineering.py      # Extract AI features
-│   │   ├── ai_service.py               # AI prediction
 │   │   └── alert_service.py            # Alert notifications
 │   │
 │   ├── infrastructure/                 # Infrastructure layer
@@ -152,17 +142,7 @@ DoAnIoT/
 │       ├── __init__.py
 │       └── helpers.py                  # Common utilities
 │
-├── ai_model/                           # AI/ML components
-│   ├── __init__.py
-│   ├── train.py                        # Model training script
-│   ├── evaluate.py                     # Model evaluation
-│   ├── data_generator.py               # Synthetic dataset generator
-│   ├── models/
-│   │   └── classifier.pkl              # Trained model
-│   └── datasets/
-│       ├── training_data.csv
-│       └── test_data.csv
-│
+
 ├── frontend/                           # Layer 4: Dashboard
 │   ├── app.py                          # Streamlit main app
 │   ├── components/
@@ -572,110 +552,7 @@ class SerialBridge:
 
 ---
 
-### **Phase 5: AI/ML Implementation (2 ngày)**
-
-#### **Day 1: Dataset & Features**
-```python
-# ai_model/data_generator.py
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-
-def generate_training_data(n_samples=500):
-    data = []
-    start = datetime(2026, 1, 1, 0, 0, 0)
-    
-    for i in range(n_samples):
-        timestamp = start + timedelta(minutes=i*5)
-        hour = timestamp.hour
-        
-        # Normal patterns (8h-22h)
-        if 8 <= hour <= 22:
-            motion = np.random.choice([0, 1], p=[0.3, 0.7])
-            label = 0  # Normal
-        # Suspicious patterns (22h-8h)
-        else:
-            motion = np.random.choice([0, 1], p=[0.8, 0.2])
-            label = 1 if motion == 1 else 0  # Suspicious if motion
-        
-        data.append({
-            "timestamp": timestamp.isoformat(),
-            "motion": motion,
-            "hour": hour,
-            "label": label
-        })
-    
-    return pd.DataFrame(data)
-```
-
-```python
-# backend/services/feature_engineering.py
-import pandas as pd
-
-class FeatureEngineer:
-    @staticmethod
-    def extract_features(events: pd.DataFrame) -> pd.DataFrame:
-        df = events.copy()
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        
-        # Time-based features
-        df['hour'] = df['timestamp'].dt.hour
-        df['day_of_week'] = df['timestamp'].dt.dayofweek
-        df['is_night'] = ((df['hour'] >= 22) | (df['hour'] <= 6)).astype(int)
-        df['is_weekend'] = (df['day_of_week'] >= 5).astype(int)
-        
-        # Motion features (rolling window)
-        df['motion_freq_10min'] = df['motion'].rolling(window=10, min_periods=1).sum()
-        df['motion_freq_30min'] = df['motion'].rolling(window=30, min_periods=1).sum()
-        
-        # Duration features
-        df['motion_duration'] = df.groupby((df['motion'] != df['motion'].shift()).cumsum())['motion'].transform('size')
-        
-        return df
-```
-
-#### **Day 2: Training & Evaluation**
-```python
-# ai_model/train.py
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix
-import joblib
-
-def train_model():
-    # Load data
-    df = pd.read_csv('ai_model/datasets/training_data.csv')
-    
-    # Features
-    X = df[['hour', 'is_night', 'motion_freq_10min', 'motion_duration']]
-    y = df['label']
-    
-    # Split
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-    
-    # Train
-    model = DecisionTreeClassifier(max_depth=5, random_state=42)
-    model.fit(X_train, y_train)
-    
-    # Evaluate
-    y_pred = model.predict(X_test)
-    print(classification_report(y_test, y_pred))
-    
-    # Save
-    joblib.dump(model, 'ai_model/models/classifier.pkl')
-    
-    return model
-```
-
-**Deliverables:**
-- Synthetic dataset (500 records)
-- Feature engineering pipeline
-- Trained model (classifier.pkl)
-- Evaluation report (75-85% accuracy)
-
----
-
-### **Phase 6: Dashboard (2 ngày)**
+### **Phase 5: Dashboard (2 ngày)**
 
 ```python
 # frontend/app.py
@@ -716,7 +593,7 @@ st.dataframe(recent_events, use_container_width=True)
 
 ---
 
-### **Phase 7: Integration & Alerts (1 ngày)**
+### **Phase 6: Integration & Alerts (1 ngày)**
 - ✅ Integrate all components
 - ✅ Alert service (optional: email/telegram)
 - ✅ End-to-end testing
@@ -729,7 +606,7 @@ st.dataframe(recent_events, use_container_width=True)
 
 ---
 
-### **Phase 8: Testing & Documentation (1.5 ngày)**
+### **Phase 7: Testing & Documentation (1.5 ngày)**
 - ✅ Unit tests (pytest)
 - ✅ Documentation (architecture, API, deployment)
 - ✅ Demo scenarios preparation
@@ -751,11 +628,10 @@ st.dataframe(recent_events, use_container_width=True)
 | Phase 2: MQTT | 1 day | Phase 1 | ⏳ Pending |
 | Phase 3: Hardware | 1 day | Phase 2 | ⏳ Pending |
 | Phase 4: Backend | 1 day | Phase 2, 3 | ⏳ Pending |
-| Phase 5: AI/ML | 2 days | Phase 4 | ⏳ Pending |
-| Phase 6: Dashboard | 2 days | Phase 4 | ⏳ Pending |
-| Phase 7: Integration | 1 day | Phase 5, 6 | ⏳ Pending |
-| Phase 8: Testing | 1.5 days | All | ⏳ Pending |
-| **TOTAL** | **10 days** | | |
+| Phase 5: Dashboard | 2 days | Phase 4 | ⏳ Pending |
+| Phase 6: Integration | 1 day | Phase 5 | ⏳ Pending |
+| Phase 7: Testing | 1.5 days | All | ⏳ Pending |
+| **TOTAL** | **8 days** | | |
 
 ---
 
@@ -771,7 +647,6 @@ st.dataframe(recent_events, use_container_width=True)
 - paho-mqtt (MQTT client)
 - SQLite (Database)
 - pandas (Data processing)
-- scikit-learn (AI/ML)
 - PyYAML (Configuration)
 
 ### **Frontend**
@@ -794,29 +669,17 @@ st.dataframe(recent_events, use_container_width=True)
 │ Sensor  │     │  /WiFi   │     │  Broker  │     │ Subscriber│
 └─────────┘     └──────────┘     └──────────┘     └────┬─────┘
                                                         │
-                     ┌──────────────────────────────────┘
-                     │
-      ┌──────────────┴──────────────┐
-      │                             │
-      ▼                             ▼
-┌────────────┐              ┌──────────────┐
-│  Database  │              │ Feature Eng. │
-│  (SQLite)  │              │  + AI Model  │
-└────────────┘              └──────┬───────┘
-      │                            │
-      │                            ▼
-      │                    ┌───────────────┐
-      │                    │  Prediction   │
-      │                    │ Normal/Abnormal│
-      │                    └───────┬───────┘
-      │                            │
-      └────────────┬───────────────┘
-                   │
-                   ▼
-            ┌─────────────┐
-            │  Dashboard  │
-            │ (Streamlit) │
-            └─────────────┘
+                                                        ▼
+                                                 ┌────────────┐
+                                                 │  Database  │
+                                                 │  (SQLite)  │
+                                                 └─────┬──────┘
+                                                       │
+                                                       ▼
+                                                ┌─────────────┐
+                                                │  Dashboard  │
+                                                │ (Streamlit) │
+                                                └─────────────┘
 ```
 
 ---
@@ -832,7 +695,6 @@ st.dataframe(recent_events, use_container_width=True)
 - [x] Báo cáo kiến trúc và demo
 
 ### **Yêu cầu tùy chọn:**
-- [x] AI classification (Normal/Abnormal)
 - [ ] Email/Telegram notifications
 - [ ] Multi-sensor support
 - [ ] Cloud deployment

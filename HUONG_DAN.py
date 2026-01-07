@@ -11,17 +11,14 @@ def main():
 📌 LẦN ĐẦU SETUP:
 
 1. Cài dependencies:
-   pip install paho-mqtt pandas numpy scikit-learn streamlit plotly pyyaml
+   pip install paho-mqtt pandas streamlit plotly pyyaml
 
 2. Setup database:
    python scripts/setup_database.py
 
-3. Train AI model:
-   python 1_TRAIN_MODEL.py
-
 ──────────────────────────────────────────────────────────────────
 
-🚀 CHẠY PROJECT (3 TERMINALS):
+🚀 CHẠY PROJECT (2 TERMINALS):
 
 Terminal 1 - Backend:
    python 2_BACKEND.py
@@ -35,19 +32,10 @@ Terminal 3 - Test (Optional):
 
 ──────────────────────────────────────────────────────────────────
 
-⚙️ ĐỔI CONFIG THỜI GIAN:
+📁 2 MODULE CHÍNH:
 
-1. Sửa file: config/time_config.yaml
-2. Train lại: python 1_TRAIN_MODEL.py
-3. Restart backend
-
-──────────────────────────────────────────────────────────────────
-
-📁 3 MODULE CHÍNH:
-
-1️⃣ TRAIN AI      → 1_TRAIN_MODEL.py  (Chạy khi đổi config)
-2️⃣ BACKEND       → 2_BACKEND.py      (Lưu dữ liệu)
-3️⃣ FRONTEND      → 3_FRONTEND.py     (Hiển thị dashboard)
+1️⃣ BACKEND       → 2_BACKEND.py      (Nhận MQTT & Lưu dữ liệu)
+2️⃣ FRONTEND      → 3_FRONTEND.py     (Hiển thị dashboard)
 
 ──────────────────────────────────────────────────────────────────
 
