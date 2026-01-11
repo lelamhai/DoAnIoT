@@ -33,6 +33,7 @@ else:
 
 from face_app.infrastructure.repos.sqlite_recognition_repo import SQLiteRecognitionRepo
 from face_app.infrastructure.monitoring.stranger_monitor import StrangerMonitor
+from face_app.infrastructure.monitoring.person_detection_monitor import PersonDetectionMonitor
 from face_app.infrastructure.notifications.email_service import EmailNotificationService
 
 # Choose repo based on engine
@@ -100,7 +101,14 @@ def main():
             def on_stranger_alert(count: int, timestamp: datetime):
                 """Callback when stranger threshold exceeded."""
                 print(f"\n🚨 CẢNH BÁO: Phát hiện {count} người lạ trong {settings.STRANGER_TIME_WINDOW}s!")
+                
+                # Send email alert
                 email_service.send_stranger_alert(count, timestamp)
+                
+                # Log to database when alert triggered
+                time_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                recognition_repo.insert_event("Stranger", time_str)
+                print(f"📝 Logged: Stranger (Alert Triggered) at {time_str}")
             
             stranger_monitor = StrangerMonitor(
                 time_window_seconds=settings.STRANGER_TIME_WINDOW,
@@ -119,6 +127,34 @@ def main():
         encodings, names = load_known_usecase.execute()
         print("=" * 70)
         
+        # Initialize known person monitors (one per person)
+        known_person_monitors = {}
+        if settings.ENABLE_KNOWN_PERSON_TRACKING and encodings:
+            unique_names = set(names)
+            print(f"\n📊 Thiết lập tracking cho {len(unique_names)} người thân:")
+            
+            for person_name in unique_names:
+                def make_callback(name):
+                    def on_known_person_detected(person: str, count: int, timestamp: datetime):
+                        """Callback when known person threshold exceeded."""
+                        print(f"\n✅ Xác nhận: {name} xuất hiện {count} lần trong {settings.KNOWN_PERSON_TIME_WINDOW}s")
+                        
+                        # Log to database when threshold reached
+                        time_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                        recognition_repo.insert_event(name, time_str)
+                        print(f"📝 Logged: {name} at {time_str}")
+                    return on_known_person_detected
+                
+                monitor = PersonDetectionMonitor(
+                    person_name=person_name,
+                    time_window_seconds=settings.KNOWN_PERSON_TIME_WINDOW,
+                    threshold=settings.KNOWN_PERSON_THRESHOLD,
+                    alert_callback=make_callback(person_name),
+                    alert_cooldown_seconds=settings.KNOWN_PERSON_LOG_COOLDOWN
+                )
+                known_person_monitors[person_name] = monitor
+                print(f"   ✅ {person_name}: {settings.KNOWN_PERSON_THRESHOLD} detections/{settings.KNOWN_PERSON_TIME_WINDOW}s")
+        
         if not encodings:
             print("\n⚠️  WARNING: No known faces loaded!")
             print("💡 Add images to known_faces/<name>/ folders")
@@ -133,7 +169,8 @@ def main():
             load_known_usecase=load_known_usecase,
             recognition_repo=recognition_repo,
             match_policy=match_policy,
-            stranger_monitor=stranger_monitor
+            stranger_monitor=stranger_monitor,
+            known_person_monitors=known_person_monitors
         )
         
         # Initialize camera

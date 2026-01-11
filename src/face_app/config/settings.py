@@ -40,11 +40,23 @@ ANTISPOOFING_TEXTURE_THRESHOLD = 10.0  # Texture variance threshold
 # Database settings
 COOLDOWN_SECONDS = 10  # Minimum seconds between logging same person
 
+# Detection Tracking Settings
+ENABLE_DETECTION_TRACKING = True  # Enable detection tracking for all people
+
 # Stranger Detection & Email Alert settings
 ENABLE_STRANGER_ALERTS = True  # Enable stranger detection alerts
 STRANGER_TIME_WINDOW = 60  # Time window in seconds (1 minute)
 STRANGER_THRESHOLD = 10  # Number of stranger detections to trigger alert
 STRANGER_ALERT_COOLDOWN = 300  # Cooldown between alerts (5 minutes)
+
+# Known Person Detection settings (separate from Stranger)
+ENABLE_KNOWN_PERSON_TRACKING = True  # Enable tracking for known people
+KNOWN_PERSON_TIME_WINDOW = 60  # Time window for known person detection (seconds)
+KNOWN_PERSON_THRESHOLD = 20  # Number of detections needed to log to database (HIGHER than stranger)
+KNOWN_PERSON_LOG_COOLDOWN = 0  # No cooldown for known person logging (managed by threshold)
+# Note: Known people use detection tracking like strangers but with DIFFERENT threshold
+# Stranger: 10 detections → email + DB
+# Known Person: 20 detections → DB only (no email)
 
 # Email settings
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")  # Gmail SMTP server

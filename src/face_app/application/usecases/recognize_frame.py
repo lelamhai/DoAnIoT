@@ -20,7 +20,8 @@ class RecognizeFrameUseCase:
         recognition_repo: RecognitionRepoPort,
         match_policy: MatchPolicy,
         cooldown_seconds: int = COOLDOWN_SECONDS,
-        stranger_monitor=None  # Optional StrangerMonitor instance
+        stranger_monitor=None,  # Optional StrangerMonitor instance
+        known_person_monitors: dict = None  # Dict of PersonDetectionMonitor per known person
     ):
         """
         Initialize use case.
@@ -32,6 +33,7 @@ class RecognizeFrameUseCase:
             match_policy: Policy for matching faces
             cooldown_seconds: Minimum seconds between logging same person
             stranger_monitor: Optional stranger detection monitor
+            known_person_monitors: Optional dict of {name: PersonDetectionMonitor}
         """
         self.face_engine = face_engine
         self.load_known_usecase = load_known_usecase
@@ -39,6 +41,7 @@ class RecognizeFrameUseCase:
         self.match_policy = match_policy
         self.cooldown_seconds = cooldown_seconds
         self.stranger_monitor = stranger_monitor
+        self.known_person_monitors = known_person_monitors or {}
         
         # Cache for last recognition time (in-memory)
         self._last_recognition: Dict[str, datetime] = {}
@@ -113,31 +116,30 @@ class RecognizeFrameUseCase:
     
     def _persist_if_needed(self, name: str) -> None:
         """
-        Persist recognition event with cooldown.
+        Persist recognition event using detection monitors.
         
         Args:
             name: Person name or "Stranger"
         """
+        # Track stranger detection - only log when alert triggered
+        if name == "Stranger" and self.stranger_monitor:
+            self.stranger_monitor.record_detection(is_stranger=True, name=name)
+            return  # Don't log to DB here, let monitor callback handle it
+        
+        # Track known person detection - only log when threshold reached
+        if name in self.known_person_monitors:
+            monitor = self.known_person_monitors[name]
+            monitor.record_detection(detected_name=name)
+            return  # Don't log to DB here, let monitor callback handle it
+        
+        # Fallback: if no monitor exists, use cooldown-based logging
         now = datetime.now()
-        
-        # Track stranger detection if monitor is enabled
-        if self.stranger_monitor:
-            is_stranger = (name == "Stranger")
-            self.stranger_monitor.record_detection(is_stranger, name)
-        
-        # Check cooldown
         if name in self._last_recognition:
             time_since_last = now - self._last_recognition[name]
             if time_since_last.total_seconds() < self.cooldown_seconds:
-                # Still in cooldown period
                 return
         
-        # Update last recognition time
         self._last_recognition[name] = now
-        
-        # Persist to database
         time_str = now.strftime("%Y-%m-%d %H:%M:%S")
         self.recognition_repo.insert_event(name, time_str)
-        
-        # Log to console
         print(f"📝 Logged: {name} at {time_str}")

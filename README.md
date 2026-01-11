@@ -48,7 +48,7 @@ known_faces/
 python run.py
 ```
 
-**Advanced Mode (Phase 4 - InsightFace, Tracking, Multi-threading):**
+**Advanced Mode (Phase 4 - InsightFace, Tracking, Multi-threading + Stranger Alerts):**
 ```bash
 python run_advanced.py
 ```
@@ -58,17 +58,83 @@ python run_advanced.py
 - `ENABLE_TRACKING = True` - Bật tracking (giảm compute)
 - `USE_THREADED_CAMERA = True` - Multi-threading (FPS cao hơn)
 - `ENABLE_ANTISPOOFING = True` - Anti-spoofing cơ bản
+- `ENABLE_STRANGER_ALERTS = True` - Bật cảnh báo người lạ qua email
 
-#### Dashboard (Streamlit)
+**Controls:**
+- Nhấn `q` để thoát
+- Nhấn `r` để reload known faces (thêm ảnh mới không cần restart)
+
+#### 📊 Dashboard (Streamlit)
+
+**Chạy dashboard:**
 ```bash
 streamlit run dashboard.py
 ```
 
-#### API Server (FastAPI)
+Mở trình duyệt tại: **http://localhost:8501**
+
+**Tính năng Dashboard:**
+- 📊 **Statistics Cards**: 
+  - Tổng số events
+  - Số người unique
+  - Events hôm nay
+  - Người được nhận diện nhiều nhất
+  
+- 📝 **Events Table**: 
+  - Xem toàn bộ lịch sử recognition
+  - Sắp xếp theo thời gian
+  - Pagination
+  
+- 🔍 **Filters**: 
+  - Filter theo tên người
+  - Filter theo khoảng thời gian
+  - Reset filters
+  
+- 📈 **Charts**: 
+  - Biểu đồ events by person (bar chart)
+  - Phân bố events theo thời gian
+  
+- 📥 **Export**: 
+  - Download toàn bộ data dạng CSV
+  - Export filtered data
+  
+- 🔄 **Auto-refresh**: 
+  - Tự động refresh mỗi 5 giây
+  - Toggle on/off
+
+**Screenshots Dashboard:**
+```
++----------------------------------------------------------+
+|  Face Recognition Dashboard                              |
++----------------------------------------------------------+
+|  [Total: 150]  [Unique: 3]  [Today: 45]  [Top: Linh]    |
++----------------------------------------------------------+
+|  Filter by Name: [Dropdown▼]  Date Range: [From|To]     |
++----------------------------------------------------------+
+|  Recognition Events Table                                |
+|  | ID | Name     | Time                | Actions       |
+|  | 1  | Linh     | 2026-01-11 12:30:00 | View         |
+|  | 2  | Stranger | 2026-01-11 12:31:00 | View         |
++----------------------------------------------------------+
+|  📊 Events by Person (Bar Chart)                         |
+|  Linh:     ████████████████ 80                           |
+|  Nam:      ████████ 40                                    |
+|  Stranger: ████ 30                                        |
++----------------------------------------------------------+
+|  📥 Download CSV    🔄 Auto-refresh: ON                  |
++----------------------------------------------------------+
+```
+
+**Troubleshooting Dashboard:**
+- Nếu lỗi "streamlit command not found": `pip install streamlit`
+- Nếu port 8501 đã được dùng: `streamlit run dashboard.py --server.port 8502`
+- Không hiển thị data: Kiểm tra `data/attendance.sqlite` đã có dữ liệu chưa
+
+#### 🌐 API Server (FastAPI)
 ```bash
 python -m uvicorn api.main:app --reload
 ```
-Truy cập: http://localhost:8000/docs
+Truy cập API docs: http://localhost:8000/docs
 
 ## 📁 Cấu trúc dự án
 
