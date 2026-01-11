@@ -10,7 +10,7 @@ Không lưu ảnh, không log chi tiết (score/frame/box...), chỉ lưu đúng
 
 ## 1) Kiến trúc tổng thể (ASCII)
 
-### 1.1 Luồng realtime nhận diện
+### 1.1 Luồng realtime nhận diện (Updated với Stranger Alert)
 
 ```
 +------------------+     +---------------------+     +----------------------+
@@ -30,7 +30,21 @@ Không lưu ảnh, không log chi tiết (score/frame/box...), chỉ lưu đúng
                     +-------------------+                                 +----------------------+
                     |  UI Presenter     |                                 | SQLite Repository    |
                     | draw bbox + label |                                 | insert(name, time)   |
-                    +-------------------+                                 +----------------------+
+                    +-------------------+                                 +----------+-----------+
+                                                                                     |
+                                                                                     v
+                                                                          +----------------------+
+                                                                          | Stranger Monitor     |
+                                                                          | Track stranger count |
+                                                                          +----------+-----------+
+                                                                                     |
+                                                                    (threshold exceeded ≥10/60s)
+                                                                                     |
+                                                                                     v
+                                                                          +----------------------+
+                                                                          | Email Service (SMTP) |
+                                                                          | Send alert to family |
+                                                                          +----------------------+
 ```
 
 ### 1.2 Clean Architecture (layered)
@@ -60,6 +74,8 @@ Không lưu ảnh, không log chi tiết (score/frame/box...), chỉ lưu đúng
 │ - filesystem dataset loader (known_faces/<name>/*.jpg)                      │
 │ - OpenCV camera adapter                                                      │
 │ - SQLite repository (chỉ name + time)                                       │
+│ - Stranger Monitor (sliding window tracking)                                 │
+│ - Email Notification Service (SMTP for alerts)                               │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -84,12 +100,14 @@ face-app/
 │     └─ 01.jpg
 ├─ data/
 │  └─ attendance.sqlite             # auto-create khi chạy
+├─ docs/
+│  └─ EMAIL_SETUP.md                # hướng dẫn setup Gmail App Password
 └─ src/
    └─ face_app/
       ├─ __init__.py
       ├─ main.py                    # entrypoint chạy OpenCV app
       ├─ config/
-      │  └─ settings.py             # CAM_INDEX, TOLERANCE, RESIZE, COOLDOWN
+      │  └─ settings.py             # CAM_INDEX, TOLERANCE, EMAIL_CONFIG
       ├─ domain/
       │  ├─ entities.py             # BoundingBox, RecognitionEvent...
       │  ├─ ports.py                # Interfaces
@@ -98,6 +116,22 @@ face-app/
       │  ├─ dto.py                  # ViewModel cho UI
       │  └─ usecases/
       │     ├─ load_known_faces.py
+      │     └─ recognize_frame.py   # + stranger monitoring
+      ├─ infrastructure/
+      │  ├─ camera/
+      │  │  └─ opencv_camera.py
+      │  ├─ face_engines/
+      │  │  └─ fr_dlib_engine.py
+      │  ├─ repos/
+      │  │  ├─ filesystem_known_repo.py
+      │  │  └─ sqlite_recognition_repo.py
+      │  ├─ monitoring/
+      │  │  └─ stranger_monitor.py   # track strangers, trigger alerts
+      │  └─ notifications/
+      │     └─ email_service.py      # SMTP email sender
+      └─ presentation/
+         └─ opencv_app.py            # loop: capture -> usecase -> draw -> show
+```
       │     └─ recognize_frame.py
       ├─ infrastructure/
       │  ├─ camera/
@@ -262,7 +296,71 @@ Có thể kết hợp cả 2.
 
 ---
 
-## 7) Quickstart (MVP)
+### Phase 5 — Security & Monitoring (NEW - COMPLETED ✅)
+- [x] **Stranger Detection Monitor**: Theo dõi người lạ trong sliding window
+  - Sliding window: 60 giây
+  - Threshold: 10 detections
+  - Auto-reset nếu < threshold
+  
+- [x] **Email Alert System**: Gửi cảnh báo qua Gmail SMTP
+  - Integration với Gmail App Password
+  - Email template tiếng Việt
+  - Alert cooldown: 5 phút (tránh spam)
+  - Test email function
+  
+- [x] **UI Integration**: Hiển thị stranger counter trên video
+  - Real-time counter display
+  - Color coding (red warning when near threshold)
+
+**Implementation Details:**
+```python
+# StrangerMonitor workflow:
+1. Record every detection (stranger or known)
+2. Cleanup old detections (> 60s)
+3. Count strangers in window
+4. If ≥10 strangers → trigger alert callback
+5. Send email via SMTP
+6. Auto-reset after alert
+7. Cooldown 5 minutes before next alert
+```
+
+**Email Configuration:**
+```python
+# settings.py
+ENABLE_STRANGER_ALERTS = True
+STRANGER_TIME_WINDOW = 60  # seconds
+STRANGER_THRESHOLD = 10
+STRANGER_ALERT_COOLDOWN = 300  # seconds
+
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+SENDER_EMAIL = "your@gmail.com"
+SENDER_PASSWORD = "app_password"  # Gmail App Password (NOT regular password!)
+RECIPIENT_EMAILS = ["family@gmail.com"]
+```
+
+**Setup Gmail App Password:**
+1. Enable 2FA: https://myaccount.google.com/security
+2. Generate App Password: https://myaccount.google.com/apppasswords
+3. Use 16-character password (not regular password)
+
+**Testing:**
+```bash
+# Test email configuration
+python test_email.py
+
+# Run with alerts
+python run_advanced.py
+```
+
+**Deliverable:** 
+- Tự động gửi email cảnh báo khi phát hiện nhiều người lạ
+- Real-time monitoring trên UI
+- Configurable thresholds và cooldowns
+
+---
+
+## 7) Quickstart (MVP + Stranger Alerts)
 
 1) Cài dependencies:
 ```bash
@@ -275,14 +373,36 @@ known_faces/Linh/01.jpg
 known_faces/Nam/01.jpg
 ```
 
-3) Chạy app:
+3) Setup Email (Optional - cho stranger alerts):
 ```bash
-python -m face_app.main
+# Xem hướng dẫn chi tiết: docs/EMAIL_SETUP.md
+
+# Lấy Gmail App Password:
+# 1. https://myaccount.google.com/security → Bật 2FA
+# 2. https://myaccount.google.com/apppasswords → Tạo password
+# 3. Update vào src/face_app/config/settings.py:
+#    SENDER_EMAIL = "your@gmail.com"
+#    SENDER_PASSWORD = "ctym wxnc eklc frzw"  # 16-char App Password
+#    RECIPIENT_EMAILS = ["family@gmail.com"]
+
+# Test email:
+python test_email.py
 ```
 
-4) Kết quả:
+4) Chạy app:
+```bash
+# Basic mode (dlib)
+python run.py
+
+# Advanced mode (với stranger alerts)
+python run_advanced.py
+```
+
+5) Kết quả:
 - UI hiển thị `Linh` hoặc `Stranger`
 - SQLite có record `name + time`
+- **NEW (Phase 5):** Email cảnh báo khi ≥10 người lạ trong 60s
+- **NEW (Phase 5):** UI hiển thị "Strangers: X/10" counter real-time
 
 ---
 
@@ -292,6 +412,48 @@ python -m face_app.main
 - Windows đôi khi khó cài `dlib/face_recognition`; nếu gặp lỗi build thì chuyển sang:
   - Conda, hoặc
   - InsightFace (Phase 4)
+- **Email alerts:** Phải dùng Gmail App Password, không dùng mật khẩu thường
+- **Stranger threshold:** Điều chỉnh `STRANGER_THRESHOLD` và `STRANGER_TIME_WINDOW` trong settings.py
+- **Alert cooldown:** Mặc định 5 phút giữa các email để tránh spam
+
+---
+
+## 9) Architecture Patterns Used
+
+**Clean Architecture Benefits:**
+- ✅ Swappable engines (dlib ↔ InsightFace)
+- ✅ Testable business logic (MatchPolicy)
+- ✅ Independent UI layer (OpenCV, Streamlit, FastAPI)
+- ✅ Easy monitoring integration (StrangerMonitor)
+
+**Design Patterns:**
+- **Repository Pattern**: SQLite, Filesystem repos
+- **Port-Adapter Pattern**: FaceEnginePort with multiple implementations
+- **Observer Pattern**: Stranger alerts via callback
+- **Sliding Window Algorithm**: Stranger detection tracking
+
+**Key Components:**
+
+```python
+# Domain Layer (business rules)
+- MatchPolicy: tolerance-based matching
+- Entities: BoundingBox, FaceMatch, RecognitionEvent
+
+# Application Layer (orchestration)
+- RecognizeFrameUseCase: main recognition pipeline
+- LoadKnownFacesUseCase: dataset loading
+
+# Infrastructure Layer (external services)
+- FRDlibEngine / InsightFaceEngine: face recognition
+- SQLiteRecognitionRepo: persistence
+- StrangerMonitor: sliding window tracking
+- EmailNotificationService: SMTP alerts
+
+# Presentation Layer (UI)
+- OpenCVApp: real-time video UI with alerts
+- Streamlit Dashboard: web analytics
+- FastAPI: REST API
+```
 
 ---
 
