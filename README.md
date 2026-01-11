@@ -164,6 +164,66 @@ Chi tiết kiến trúc và design: xem [system.md](system.md)
 - `USE_THREADED_CAMERA`: True = multi-threading cho FPS cao hơn (mặc định False)
 - `ENABLE_ANTISPOOFING`: True = bật anti-spoofing cơ bản (mặc định False)
 
+**🚨 Stranger Alert Settings (NEW):**
+- `ENABLE_STRANGER_ALERTS`: Bật/tắt cảnh báo người lạ (mặc định True)
+- `STRANGER_TIME_WINDOW`: Cửa sổ thời gian theo dõi (mặc định 60 giây)
+- `STRANGER_THRESHOLD`: Ngưỡng kích hoạt cảnh báo (mặc định 10 lần)
+- `STRANGER_ALERT_COOLDOWN`: Thời gian chờ giữa các cảnh báo (mặc định 300 giây)
+
+## 🚨 Tính năng Cảnh Báo Người Lạ
+
+Hệ thống tự động giám sát và gửi email cảnh báo khi phát hiện nhiều người lạ trong thời gian ngắn.
+
+### Cách hoạt động:
+1. **Theo dõi liên tục**: Đếm số lần nhận diện "Stranger" trong 60 giây
+2. **Kích hoạt cảnh báo**: Khi ≥ 10 lần → Gửi email cho người thân
+3. **Tự động reset**: Nếu < 10 lần sau 60s → Reset về 0
+4. **Chống spam**: Cooldown 5 phút giữa các email
+
+### Cấu hình Email:
+
+**Bước 1: Tạo App Password từ Gmail**
+```
+1. Bật 2-Factor Authentication: https://myaccount.google.com/security
+2. Tạo App Password: https://myaccount.google.com/apppasswords
+3. Copy mật khẩu 16 ký tự (không có khoảng trắng)
+```
+
+**Bước 2: Set biến môi trường (PowerShell)**
+```powershell
+$env:SENDER_EMAIL = "your_email@gmail.com"
+$env:SENDER_PASSWORD = "your_app_password"  # App Password, NOT regular password!
+$env:RECIPIENT_EMAILS = "family1@gmail.com,family2@gmail.com"
+```
+
+**Bước 3: Chạy app**
+```bash
+python run.py
+```
+
+**Chi tiết cấu hình:** Xem [docs/EMAIL_SETUP.md](docs/EMAIL_SETUP.md)
+
+### Test Email:
+```python
+from face_app.infrastructure.notifications.email_service import EmailNotificationService
+from datetime import datetime
+
+service = EmailNotificationService(
+    smtp_server="smtp.gmail.com",
+    smtp_port=587,
+    sender_email="your@gmail.com",
+    sender_password="app_password",
+    recipient_emails=["family@gmail.com"]
+)
+
+# Gửi email test
+service.send_test_email()
+```
+
+### Hiển thị trên UI:
+- **Camera App**: Hiển thị "Strangers: X/10" trên video
+- **Console**: Thông báo khi gửi email thành công
+
 ## 📡 API Endpoints (Phase 3)
 
 ### FastAPI Server
@@ -197,8 +257,9 @@ Gặp vấn đề? Kiểm tra:
 2. Dependencies đã cài: `pip list | findstr "opencv face"`
 3. Ảnh trong known_faces đúng format
 4. SQLite file có quyền ghi
+5. Email settings: Xem [docs/EMAIL_SETUP.md](docs/EMAIL_SETUP.md)
 
 ---
 
-**Phiên bản**: 0.1.0 (MVP - Phase 0)  
+**Phiên bản**: 0.2.0 (MVP + Stranger Alerts)  
 **Ngày**: 2026-01-09

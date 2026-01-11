@@ -1,6 +1,6 @@
 """Use case for recognizing faces in a frame."""
 from datetime import datetime, timedelta
-from typing import Dict
+from typing import Dict, Optional
 import numpy as np
 import cv2
 from face_app.domain.ports import FaceEnginePort, RecognitionRepoPort
@@ -19,7 +19,8 @@ class RecognizeFrameUseCase:
         load_known_usecase: LoadKnownFacesUseCase,
         recognition_repo: RecognitionRepoPort,
         match_policy: MatchPolicy,
-        cooldown_seconds: int = COOLDOWN_SECONDS
+        cooldown_seconds: int = COOLDOWN_SECONDS,
+        stranger_monitor=None  # Optional StrangerMonitor instance
     ):
         """
         Initialize use case.
@@ -30,12 +31,14 @@ class RecognizeFrameUseCase:
             recognition_repo: Repository for persisting events
             match_policy: Policy for matching faces
             cooldown_seconds: Minimum seconds between logging same person
+            stranger_monitor: Optional stranger detection monitor
         """
         self.face_engine = face_engine
         self.load_known_usecase = load_known_usecase
         self.recognition_repo = recognition_repo
         self.match_policy = match_policy
         self.cooldown_seconds = cooldown_seconds
+        self.stranger_monitor = stranger_monitor
         
         # Cache for last recognition time (in-memory)
         self._last_recognition: Dict[str, datetime] = {}
@@ -116,6 +119,11 @@ class RecognizeFrameUseCase:
             name: Person name or "Stranger"
         """
         now = datetime.now()
+        
+        # Track stranger detection if monitor is enabled
+        if self.stranger_monitor:
+            is_stranger = (name == "Stranger")
+            self.stranger_monitor.record_detection(is_stranger, name)
         
         # Check cooldown
         if name in self._last_recognition:

@@ -17,6 +17,7 @@ class OpenCVApp:
         self,
         camera: CameraPort,
         recognize_usecase: RecognizeFrameUseCase,
+        stranger_monitor=None,
         window_name: str = "Face Recognition - Press 'q' to quit"
     ):
         """
@@ -25,10 +26,12 @@ class OpenCVApp:
         Args:
             camera: Camera port
             recognize_usecase: Use case for recognizing frames
+            stranger_monitor: Optional stranger detection monitor
             window_name: Window title
         """
         self.camera = camera
         self.recognize_usecase = recognize_usecase
+        self.stranger_monitor = stranger_monitor
         self.window_name = window_name
     
     def run(self) -> None:
@@ -111,6 +114,21 @@ class OpenCVApp:
             (255, 255, 255),
             1
         )
+        
+        # Draw stranger monitor status if enabled
+        if self.stranger_monitor:
+            status = self.stranger_monitor.get_status()
+            status_text = f"Strangers: {status['current_count']}/{status['threshold']}"
+            status_color = (0, 0, 255) if status['current_count'] >= status['threshold'] * 0.7 else (255, 255, 255)
+            cv2.putText(
+                display_frame,
+                status_text,
+                (10, 50),
+                FONT,
+                0.5,
+                status_color,
+                1
+            )
         
         # Draw each detected face
         for face in result.faces:

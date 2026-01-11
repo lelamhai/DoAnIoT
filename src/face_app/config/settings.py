@@ -40,6 +40,24 @@ ANTISPOOFING_TEXTURE_THRESHOLD = 10.0  # Texture variance threshold
 # Database settings
 COOLDOWN_SECONDS = 10  # Minimum seconds between logging same person
 
+# Stranger Detection & Email Alert settings
+ENABLE_STRANGER_ALERTS = True  # Enable stranger detection alerts
+STRANGER_TIME_WINDOW = 60  # Time window in seconds (1 minute)
+STRANGER_THRESHOLD = 10  # Number of stranger detections to trigger alert
+STRANGER_ALERT_COOLDOWN = 300  # Cooldown between alerts (5 minutes)
+
+# Email settings
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")  # Gmail SMTP server
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))  # TLS port
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "leelamhair@gmail.com")  # Your email address
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "ctym wxnc eklc frzw")  # App Password (not regular password!)
+RECIPIENT_EMAILS = os.getenv("RECIPIENT_EMAILS", "lelamhai.khtn@gmail.com").split(",") if os.getenv("RECIPIENT_EMAILS") else ["lelamhai.khtn@gmail.com"]  # Comma-separated emails
+
+# Security note: Use App Passwords for Gmail!
+# 1. Enable 2-Factor Authentication: https://myaccount.google.com/security
+# 2. Generate App Password: https://myaccount.google.com/apppasswords
+# 3. Set environment variable: SENDER_PASSWORD=your_app_password
+
 # UI settings
 BBOX_COLOR_KNOWN = (0, 255, 0)  # Green for known faces
 BBOX_COLOR_UNKNOWN = (0, 0, 255)  # Red for strangers

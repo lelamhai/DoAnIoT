@@ -1,6 +1,7 @@
 """Advanced main entry point with Phase 4 features."""
 import sys
 from pathlib import Path
+from datetime import datetime
 
 # Add src to path
 src_path = Path(__file__).parent / "src"
@@ -31,6 +32,8 @@ else:
     camera_kwargs = {}
 
 from face_app.infrastructure.repos.sqlite_recognition_repo import SQLiteRecognitionRepo
+from face_app.infrastructure.monitoring.stranger_monitor import StrangerMonitor
+from face_app.infrastructure.notifications.email_service import EmailNotificationService
 
 # Choose repo based on engine
 if settings.USE_INSIGHTFACE:
@@ -57,6 +60,7 @@ def main():
     print(f"   Tracking: {'Enabled' if settings.ENABLE_TRACKING else 'Disabled'}")
     print(f"   Threaded Camera: {'Enabled' if settings.USE_THREADED_CAMERA else 'Disabled'}")
     print(f"   Anti-spoofing: {'Enabled' if settings.ENABLE_ANTISPOOFING else 'Disabled'}")
+    print(f"   Stranger Alerts: {'Enabled' if settings.ENABLE_STRANGER_ALERTS else 'Disabled'}")
     print(f"   Tolerance: {settings.TOLERANCE}")
     
     try:
@@ -73,6 +77,38 @@ def main():
         # Initialize domain
         match_policy = MatchPolicy(tolerance=settings.TOLERANCE)
         print(f"   ✅ Match policy initialized")
+        
+        # Initialize email service for stranger alerts
+        email_service = None
+        if settings.ENABLE_STRANGER_ALERTS:
+            if settings.SENDER_EMAIL and settings.RECIPIENT_EMAILS[0]:
+                email_service = EmailNotificationService(
+                    smtp_server=settings.SMTP_SERVER,
+                    smtp_port=settings.SMTP_PORT,
+                    sender_email=settings.SENDER_EMAIL,
+                    sender_password=settings.SENDER_PASSWORD,
+                    recipient_emails=settings.RECIPIENT_EMAILS,
+                    enabled=True
+                )
+                print(f"   ✅ Email alerts enabled → {', '.join(settings.RECIPIENT_EMAILS)}")
+            else:
+                print("   ⚠️  Email alerts enabled but credentials not configured!")
+        
+        # Initialize stranger monitor with email callback
+        stranger_monitor = None
+        if settings.ENABLE_STRANGER_ALERTS and email_service:
+            def on_stranger_alert(count: int, timestamp: datetime):
+                """Callback when stranger threshold exceeded."""
+                print(f"\n🚨 CẢNH BÁO: Phát hiện {count} người lạ trong {settings.STRANGER_TIME_WINDOW}s!")
+                email_service.send_stranger_alert(count, timestamp)
+            
+            stranger_monitor = StrangerMonitor(
+                time_window_seconds=settings.STRANGER_TIME_WINDOW,
+                threshold=settings.STRANGER_THRESHOLD,
+                alert_callback=on_stranger_alert,
+                alert_cooldown_seconds=settings.STRANGER_ALERT_COOLDOWN
+            )
+            print(f"   ✅ Stranger monitor: {settings.STRANGER_THRESHOLD} detections/{settings.STRANGER_TIME_WINDOW}s")
         
         # Initialize application (use cases)
         load_known_usecase = LoadKnownFacesUseCase(known_repo)
@@ -96,7 +132,8 @@ def main():
             face_engine=face_engine,
             load_known_usecase=load_known_usecase,
             recognition_repo=recognition_repo,
-            match_policy=match_policy
+            match_policy=match_policy,
+            stranger_monitor=stranger_monitor
         )
         
         # Initialize camera
@@ -104,8 +141,8 @@ def main():
         camera = Camera(settings.CAMERA_INDEX, **camera_kwargs)
         print("   ✅ Camera opened successfully")
         
-        # Initialize presentation
-        app = OpenCVApp(camera, recognize_usecase)
+        # Initialize presentation with stranger monitor
+        app = OpenCVApp(camera, recognize_usecase, stranger_monitor=stranger_monitor)
         
         # Run app
         print("\n" + "=" * 70)
