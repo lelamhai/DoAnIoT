@@ -52,11 +52,11 @@ STRANGER_ALERT_COOLDOWN = 300  # Cooldown between alerts (5 minutes)
 # Known Person Detection settings (separate from Stranger)
 ENABLE_KNOWN_PERSON_TRACKING = True  # Enable tracking for known people
 KNOWN_PERSON_TIME_WINDOW = 60  # Time window for known person detection (seconds)
-KNOWN_PERSON_THRESHOLD = 20  # Number of detections needed to log to database (HIGHER than stranger)
+KNOWN_PERSON_THRESHOLD = 10  # Number of detections needed to log to database (SAME as stranger)
 KNOWN_PERSON_LOG_COOLDOWN = 0  # No cooldown for known person logging (managed by threshold)
-# Note: Known people use detection tracking like strangers but with DIFFERENT threshold
-# Stranger: 10 detections → email + DB
-# Known Person: 20 detections → DB only (no email)
+# Note: Known people use detection tracking like strangers but with SAME threshold
+# Stranger: 10 detections → email + DB (when active=True)
+# Known Person: 10 detections → DB only (when active=True, no email)
 
 # Email settings
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")  # Gmail SMTP server
@@ -77,6 +77,14 @@ BBOX_THICKNESS = 2
 FONT = 0  # cv2.FONT_HERSHEY_SIMPLEX
 FONT_SCALE = 0.6
 FONT_THICKNESS = 2
+
+# IoT / MQTT settings
+ENABLE_PIR_CONTROL = True  # Enable PIR sensor control via MQTT
+MQTT_BROKER = "broker.hivemq.com"  # Public MQTT broker
+MQTT_PORT = 1883  # Default MQTT port
+MQTT_CLIENT_ID = "face_recognition_app_nhom03"  # Unique client ID
+MQTT_TOPIC_PIR = "iot/nhom03/security/pir"  # PIR sensor topic
+MQTT_KEEPALIVE = 60  # Keepalive interval in seconds
 
 # Ensure directories exist
 KNOWN_FACES_DIR.mkdir(exist_ok=True)

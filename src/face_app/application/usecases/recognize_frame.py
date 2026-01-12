@@ -46,12 +46,13 @@ class RecognizeFrameUseCase:
         # Cache for last recognition time (in-memory)
         self._last_recognition: Dict[str, datetime] = {}
     
-    def execute(self, frame_bgr: np.ndarray) -> RecognitionResult:
+    def execute(self, frame_bgr: np.ndarray, active: bool = True) -> RecognitionResult:
         """
         Recognize faces in a frame.
         
         Args:
             frame_bgr: BGR frame from camera
+            active: Control database logging and email (True = enable, False = disable)
             
         Returns:
             RecognitionResult with detected faces
@@ -90,8 +91,8 @@ class RecognizeFrameUseCase:
             # Match using policy
             match = self.match_policy.match(known_encodings, known_names, encoding, distances)
             
-            # Persist to database (with cooldown)
-            self._persist_if_needed(match.label)
+            # Persist to database (with cooldown) - chỉ khi active=True
+            self._persist_if_needed(match.label, active=active)
             
             # Create DTO
             face_dto = FaceRecognitionDTO(
@@ -114,13 +115,17 @@ class RecognizeFrameUseCase:
             left=int(box.left * scale)
         )
     
-    def _persist_if_needed(self, name: str) -> None:
+    def _persist_if_needed(self, name: str, active: bool = True) -> None:
         """
         Persist recognition event using detection monitors.
         
         Args:
             name: Person name or "Stranger"
+            active: If False, skip all DB logging and email sending
         """
+        # Nếu active=False, không ghi DB và không gửi email
+        if not active:
+            return
         # Track stranger detection - only log when alert triggered
         if name == "Stranger" and self.stranger_monitor:
             self.stranger_monitor.record_detection(is_stranger=True, name=name)

@@ -35,6 +35,7 @@ from face_app.infrastructure.repos.sqlite_recognition_repo import SQLiteRecognit
 from face_app.infrastructure.monitoring.stranger_monitor import StrangerMonitor
 from face_app.infrastructure.monitoring.person_detection_monitor import PersonDetectionMonitor
 from face_app.infrastructure.notifications.email_service import EmailNotificationService
+from face_app.infrastructure.iot.mqtt_client import MQTTClient
 
 # Choose repo based on engine
 if settings.USE_INSIGHTFACE:
@@ -178,8 +179,41 @@ def main():
         camera = Camera(settings.CAMERA_INDEX, **camera_kwargs)
         print("   ✅ Camera opened successfully")
         
-        # Initialize presentation with stranger monitor
-        app = OpenCVApp(camera, recognize_usecase, stranger_monitor=stranger_monitor)
+        # Initialize MQTT client for PIR sensor
+        mqtt_client = None
+        if settings.ENABLE_PIR_CONTROL:
+            print(f"\n📡 Initializing MQTT for PIR sensor...")
+            
+            # Create MQTT client
+            mqtt_client = MQTTClient(
+                broker=settings.MQTT_BROKER,
+                port=settings.MQTT_PORT,
+                client_id=settings.MQTT_CLIENT_ID,
+                keepalive=settings.MQTT_KEEPALIVE
+            )
+            
+            # Connect to broker (non-blocking)
+            if mqtt_client.connect():
+                print(f"   ✅ MQTT connecting to {settings.MQTT_BROKER}:{settings.MQTT_PORT}")
+                print(f"   📶 Topic: {settings.MQTT_TOPIC_PIR}")
+            else:
+                print(f"   ⚠️  MQTT connection failed, manual control only (press 'a')")
+                mqtt_client = None
+        
+        # Initialize presentation with MQTT client
+        app = OpenCVApp(
+            camera,
+            recognize_usecase,
+            stranger_monitor=stranger_monitor,
+            mqtt_client=mqtt_client
+        )
+        
+        # Subscribe to PIR topic using app's callback (after app created)
+        if mqtt_client and hasattr(app, '_pir_callback'):
+            mqtt_client.subscribe(
+                topic=settings.MQTT_TOPIC_PIR,
+                callback=app._pir_callback
+            )
         
         # Run app
         print("\n" + "=" * 70)
@@ -194,6 +228,10 @@ def main():
         print(f"\n❌ Unexpected Error: {e}")
         import traceback
         traceback.print_exc()
+    finally:
+        # Cleanup MQTT connection
+        if 'mqtt_client' in locals() and mqtt_client:
+            mqtt_client.disconnect()
     
     print("\n" + "=" * 70)
     print("👋 Face Recognition App terminated")
