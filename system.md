@@ -101,7 +101,11 @@ face-app/
 ├─ data/
 │  └─ attendance.sqlite             # auto-create khi chạy
 ├─ docs/
-│  └─ EMAIL_SETUP.md                # hướng dẫn setup Gmail App Password
+│  ├─ EMAIL_SETUP.md                # hướng dẫn setup Gmail App Password
+│  └─ PHASE4_GUIDE.md               # advanced features guide
+├─ esp32_pir_mqtt/                   # ESP32 Arduino firmware
+│  ├─ esp32_pir_mqtt.ino            # main Arduino code
+│  └─ README.md                     # hardware setup guide
 └─ src/
    └─ face_app/
       ├─ __init__.py
@@ -126,9 +130,12 @@ face-app/
       │  │  ├─ filesystem_known_repo.py
       │  │  └─ sqlite_recognition_repo.py
       │  ├─ monitoring/
-      │  │  └─ stranger_monitor.py   # track strangers, trigger alerts
-      │  └─ notifications/
-      │     └─ email_service.py      # SMTP email sender
+      │  │  ├─ stranger_monitor.py        # track strangers, trigger alerts
+      │  │  └─ person_detection_monitor.py # track known persons
+      │  ├─ notifications/
+      │  │  └─ email_service.py            # SMTP email sender
+      │  └─ iot/
+      │     └─ mqtt_client.py              # MQTT client for PIR sensor
       └─ presentation/
          └─ opencv_app.py            # loop: capture -> usecase -> draw -> show
 ```
@@ -296,11 +303,16 @@ Có thể kết hợp cả 2.
 
 ---
 
-### Phase 5 — Security & Monitoring (NEW - COMPLETED ✅)
+### Phase 5 — Security & Monitoring (COMPLETED ✅)
 - [x] **Stranger Detection Monitor**: Theo dõi người lạ trong sliding window
   - Sliding window: 60 giây
   - Threshold: 10 detections
   - Auto-reset nếu < threshold
+  
+- [x] **Known Person Detection Monitor**: Theo dõi người thân
+  - Sliding window: 60 giây  
+  - Threshold: 10 detections (giống người lạ)
+  - Không gửi email, chỉ ghi database
   
 - [x] **Email Alert System**: Gửi cảnh báo qua Gmail SMTP
   - Integration với Gmail App Password
@@ -314,14 +326,13 @@ Có thể kết hợp cả 2.
 
 **Implementation Details:**
 ```python
-# StrangerMonitor workflow:
+# Detection Monitor workflow:
 1. Record every detection (stranger or known)
 2. Cleanup old detections (> 60s)
-3. Count strangers in window
-4. If ≥10 strangers → trigger alert callback
-5. Send email via SMTP
-6. Auto-reset after alert
-7. Cooldown 5 minutes before next alert
+3. Count detections in window
+4. Stranger: If ≥10 → Email + DB
+5. Known Person: If ≥10 → DB only (no email)
+6. Auto-reset after threshold
 ```
 
 **Email Configuration:**
@@ -331,6 +342,11 @@ ENABLE_STRANGER_ALERTS = True
 STRANGER_TIME_WINDOW = 60  # seconds
 STRANGER_THRESHOLD = 10
 STRANGER_ALERT_COOLDOWN = 300  # seconds
+
+ENABLE_KNOWN_PERSON_TRACKING = True
+KNOWN_PERSON_TIME_WINDOW = 60  # seconds
+KNOWN_PERSON_THRESHOLD = 10  # SAME as stranger
+KNOWN_PERSON_LOG_COOLDOWN = 0
 
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
@@ -354,9 +370,148 @@ python run_advanced.py
 ```
 
 **Deliverable:** 
-- Tự động gửi email cảnh báo khi phát hiện nhiều người lạ
+- Tự động gửi email cảnh báo khi phát hiện người lạ ≥10 lần/60s
+- Ghi database khi người thân xuất hiện ≥10 lần/60s
 - Real-time monitoring trên UI
 - Configurable thresholds và cooldowns
+
+---
+
+### Phase 6 — IoT Integration với ESP32 + PIR (COMPLETED ✅)
+
+- [x] **MQTT Communication**: Kết nối với ESP32 qua MQTT
+  - Broker: broker.hivemq.com (public)
+  - Topic: `iot/nhom03/security/pir`
+  - Protocol: MQTT 1883
+  - Client ID: face_recognition_app_nhom03
+  
+- [x] **Active Control Variable**: Biến điều khiển ghi DB và email
+  - `active = True`: Cho phép ghi database + gửi email
+  - `active = False`: Chỉ nhận diện và hiển thị, không ghi/gửi
+  - Điều khiển bằng PIR sensor hoặc phím 'A' thủ công
+  
+- [x] **PIR Sensor Integration**: ESP32 với cảm biến PIR HC-SR501
+  - PIR phát hiện chuyển động → Gửi "1" → active = True
+  - PIR không phát hiện → Gửi "0" → active = False
+  - Debounce: 500ms
+  - Heartbeat: Gửi message mỗi 1 giây
+  
+- [x] **ESP32 Arduino Code**: Firmware hoàn chỉnh
+  - WiFi connection với auto-retry
+  - MQTT client với auto-reconnect
+  - PIR reading với debounce logic
+  - LED indicator (GPIO 2)
+  - Serial logging chi tiết
+  - 30 giây PIR warm-up time
+
+**Architecture:**
+```
+┌─────────────┐   WiFi    ┌──────────────┐   MQTT    ┌─────────────────┐
+│ PIR Sensor  │──────────▶│    ESP32     │──────────▶│ MQTT Broker     │
+│  HC-SR501   │   GPIO13  │              │  Publish  │ (HiveMQ.com)    │
+└─────────────┘           └──────────────┘           └────────┬────────┘
+                                                               │ Subscribe
+                                                               ▼
+                                                    ┌─────────────────────┐
+                                                    │  Python App         │
+                                                    │  (Face Recognition) │
+                                                    └─────────────────────┘
+```
+
+**MQTT Message Flow:**
+```python
+# ESP32 → MQTT Broker → Python App
+
+PIR = HIGH (Motion detected)
+  → ESP32 publish "1" to iot/nhom03/security/pir
+  → Python receives "1"
+  → active = True
+  → Enable DB logging + Email alerts
+
+PIR = LOW (No motion)
+  → ESP32 publish "0" to iot/nhom03/security/pir
+  → Python receives "0"
+  → active = False
+  → Disable DB/Email (display only)
+```
+
+**Python MQTT Configuration:**
+```python
+# settings.py
+ENABLE_PIR_CONTROL = True
+MQTT_BROKER = "broker.hivemq.com"
+MQTT_PORT = 1883
+MQTT_CLIENT_ID = "face_recognition_app_nhom03"
+MQTT_TOPIC_PIR = "iot/nhom03/security/pir"
+MQTT_KEEPALIVE = 60
+```
+
+**ESP32 Configuration:**
+```cpp
+// esp32_pir_mqtt.ino
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
+const char* mqtt_server = "broker.hivemq.com";
+const char* mqtt_topic = "iot/nhom03/security/pir";
+const int PIR_PIN = 13;  // GPIO 13
+```
+
+**Hardware Connection:**
+```
+PIR HC-SR501          ESP32
+┌──────────┐        ┌─────────┐
+│   VCC    │───────▶│   5V    │
+│   OUT    │───────▶│ GPIO 13 │
+│   GND    │───────▶│   GND   │
+└──────────┘        └─────────┘
+```
+
+**Testing:**
+```bash
+# 1. Upload ESP32 code (Arduino IDE)
+# 2. Monitor ESP32 Serial (115200 baud)
+# 3. Run Python app
+python run_advanced.py
+
+# 4. Quan sát:
+# - ESP32: Khi PIR trigger → "📤 Published: 1"
+# - Python: "🟢 PIR: Motion detected → ACTIVE = True"
+# - ESP32: Khi PIR idle → "📤 Published: 0"  
+# - Python: "🔴 PIR: No motion → ACTIVE = False"
+```
+
+**UI Display:**
+```
+📡 MQTT PIR Control: Connected
+📊 ACTIVE mode: True (BẬT = ghi DB/email, TẮT = chỉ hiển thị)
+
+MQTT: Connected ✅
+ACTIVE: ON (DB+Email) 🟢  ← Điều khiển bởi PIR
+```
+
+**Manual Override:**
+- Phím **'A'**: Toggle active manually (khi không có PIR)
+- Phím **'R'**: Reload known faces
+- Phím **'Q'**: Quit application
+
+**Logic Tổng Hợp:**
+```python
+# Khi active = True (PIR = 1 hoặc manual):
+- Stranger ≥10 lần/60s → Ghi DB + Gửi Email ✅
+- Known Person ≥10 lần/60s → Ghi DB ✅
+
+# Khi active = False (PIR = 0):
+- Stranger → Chỉ hiển thị, không ghi DB, không email ❌
+- Known Person → Chỉ hiển thị, không ghi DB ❌
+```
+
+**Deliverable:**
+- ✅ ESP32 firmware hoàn chỉnh với PIR + MQTT
+- ✅ Python MQTT client non-blocking
+- ✅ Active control variable điều khiển toàn bộ logging
+- ✅ Real-time PIR status trên UI
+- ✅ Manual override capability
+- ✅ Comprehensive documentation (README.md)
 
 ---
 
@@ -388,18 +543,21 @@ known_faces/Nam/01.jpg
 # Test email:
 python test_email.py
 ```
-
-4) Chạy app:
-```bash
-# Basic mode (dlib)
+, no IoT)
 python run.py
 
-# Advanced mode (với stranger alerts)
+# Advanced mode (với stranger alerts + MQTT PIR control)
 python run_advanced.py
 ```
 
 5) Kết quả:
 - UI hiển thị `Linh` hoặc `Stranger`
+- SQLite có record `name + time` (khi active=True)
+- **Phase 5:** Email cảnh báo khi ≥10 người lạ trong 60s
+- **Phase 5:** UI hiển thị "Strangers: X/10" counter real-time
+- **Phase 6:** MQTT status: Connected/Disconnected
+- **Phase 6:** ACTIVE status: ON/OFF (điều khiển bởi PIR hoặc phím 'A')
+- **Phase 6:** PIR sensor tự động BẬT/TẮT chức năng logging
 - SQLite có record `name + time`
 - **NEW (Phase 5):** Email cảnh báo khi ≥10 người lạ trong 60s
 - **NEW (Phase 5):** UI hiển thị "Strangers: X/10" counter real-time
@@ -410,8 +568,15 @@ python run_advanced.py
 - Mỗi người nên có **3–10 ảnh** (nhiều góc + ánh sáng)
 - `TOLERANCE` khuyến nghị start ở **0.5** (siết: 0.45, nới: 0.55)
 - Windows đôi khi khó cài `dlib/face_recognition`; nếu gặp lỗi build thì chuyển sang:
-  - Conda, hoặc
-  - InsightFace (Phase 4)
+  - Conda, h/Known threshold:** Cả 2 đều là 10 lần/60s
+- **Alert cooldown:** Mặc định 5 phút giữa các email để tránh spam
+- **MQTT Broker:** Dùng public broker broker.hivemq.com (hoặc tự host)
+- **PIR Sensor:** HC-SR501, điều chỉnh sensitivity và time delay bằng trimpot
+- **WiFi:** ESP32 chỉ hỗ trợ 2.4GHz, không hỗ trợ 5GHz
+- **Active Control:** 
+  - `active=True`: Ghi DB + Email (khi PIR phát hiện chuyển động)
+  - `active=False`: Chỉ hiển thị (khi PIR không phát hiện)
+  - Có thể toggle thủ công bằng phím 'A'
 - **Email alerts:** Phải dùng Gmail App Password, không dùng mật khẩu thường
 - **Stranger threshold:** Điều chỉnh `STRANGER_THRESHOLD` và `STRANGER_TIME_WINDOW` trong settings.py
 - **Alert cooldown:** Mặc định 5 phút giữa các email để tránh spam
@@ -420,17 +585,8 @@ python run_advanced.py
 
 ## 9) Architecture Patterns Used
 
-**Clean Architecture Benefits:**
-- ✅ Swappable engines (dlib ↔ InsightFace)
-- ✅ Testable business logic (MatchPolicy)
-- ✅ Independent UI layer (OpenCV, Streamlit, FastAPI)
-- ✅ Easy monitoring integration (StrangerMonitor)
-
-**Design Patterns:**
-- **Repository Pattern**: SQLite, Filesystem repos
-- **Port-Adapter Pattern**: FaceEnginePort with multiple implementations
-- **Observer Pattern**: Stranger alerts via callback
-- **Sliding Window Algorithm**: Stranger detection tracking
+**Clean Architecture Benefits:**/Known person detection tracking
+- **Pub-Sub Pattern**: MQTT communication for IoT integration
 
 **Key Components:**
 
@@ -440,9 +596,51 @@ python run_advanced.py
 - Entities: BoundingBox, FaceMatch, RecognitionEvent
 
 # Application Layer (orchestration)
-- RecognizeFrameUseCase: main recognition pipeline
+- RecognizeFrameUseCase: main recognition pipeline with active control
 - LoadKnownFacesUseCase: dataset loading
 
+# Infrastructure Layer (external services)
+- FRDlibEngine / InsightFaceEngine: face recognition
+- SQLiteRecognitionRepo: persistence
+- StrangerMonitor: sliding window tracking (10/60s → email + DB)
+- PersonDetectionMonitor: known person tracking (10/60s → DB only)
+- EmailNotificationService: SMTP alerts
+- MQTTClient: IoT communication with ESP32
+
+# Presentation Layer (UI)
+- OpenCVApp: real-time video UI with alerts + MQTT status
+- Streamlit Dashboard: web analytics
+- FastAPI: REST API
+```
+
+**IoT Components:**
+
+```cpp
+// ESP32 Firmware (Arduino)
+- WiFi connection management
+- MQTT client (PubSubClient)
+- PIR sensor reading with debounce
+- State publishing (0/1)
+- Heartbeat mechanism
+```
+
+**Data Flow with IoT:**
+
+```
+┌─────────┐  GPIO  ┌─────────┐  MQTT   ┌──────────┐  Callback  ┌──────────────┐
+│   PIR   │───────▶│  ESP32  │────────▶│  Broker  │───────────▶│  Python App  │
+│ Sensor  │   13   │         │  Pub 1  │ HiveMQ   │  Sub topic │  (OpenCV UI) │
+└─────────┘        └─────────┘         └──────────┘            └──────┬───────┘
+                                                                       │
+                                                                  Set active
+                                                                       │
+                                                                       ▼
+                                                            ┌──────────────────┐
+                                                            │ RecognizeFrame   │
+                                                            │ if active:       │
+                                                            │   - Log DB       │
+                                                            │   - Send Email   │
+                                                            └──────────────────┘
 # Infrastructure Layer (external services)
 - FRDlibEngine / InsightFaceEngine: face recognition
 - SQLiteRecognitionRepo: persistence

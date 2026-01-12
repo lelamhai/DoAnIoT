@@ -17,17 +17,19 @@
 #include <PubSubClient.h>
 
 // ===== WiFi Configuration =====
-const char* ssid = "YOUR_WIFI_SSID";           // Thay bằng tên WiFi của bạn
-const char* password = "YOUR_WIFI_PASSWORD";   // Thay bằng mật khẩu WiFi
+const char* ssid = "Hoang Minh";           // Thay bằng tên WiFi của bạn
+const char* password = "99999999";   // Thay bằng mật khẩu WiFi
 
 // ===== MQTT Configuration =====
 const char* mqtt_server = "broker.hivemq.com"; // Public MQTT broker
 const int mqtt_port = 1883;
 const char* mqtt_client_id = "ESP32_PIR_Nhom03";
-const char* mqtt_topic = "iot/nhom03/security/pir";
+const char* mqtt_topic_pir = "iot/nhom03/security/pir";       // Topic gửi PIR state
+const char* mqtt_topic_buzzer = "iot/nhom03/security/buzzer"; // Topic nhận lệnh bật loa
 
 // ===== PIR Sensor Configuration =====
-const int PIR_PIN = 13;           // GPIO 13 cho PIR sensor
+const int PIR_PIN = 27;           // GPIO 27 cho PIR sensor
+const int RELAY_PIN = 26;         // GPIO 26 cho Relay (điều khiển loa)
 const int LED_PIN = 2;            // LED built-in để debug
 const int DEBOUNCE_TIME = 500;    // 500ms debounce
 const int PUBLISH_INTERVAL = 1000; // Gửi message mỗi 1 giây
@@ -40,6 +42,9 @@ int currentPIRState = LOW;
 int lastPIRState = LOW;
 unsigned long lastDebounceTime = 0;
 unsigned long lastPublishTime = 0;
+
+// Relay control
+int relayState = LOW;  // LOW = tắt loa, HIGH = bật loa
 
 // ===== Function Prototypes =====
 void setup_wifi();
@@ -56,11 +61,14 @@ void setup() {
   
   // Cấu hình GPIO
   pinMode(PIR_PIN, INPUT);
+  pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, LOW);  // Tắt loa ban đầu
   digitalWrite(LED_PIN, LOW);
   
   Serial.println("✅ GPIO configured");
   Serial.printf("   PIR Pin: GPIO %d\n", PIR_PIN);
+  Serial.printf("   Relay Pin: GPIO %d\n", RELAY_PIN);
   Serial.printf("   LED Pin: GPIO %d\n", LED_PIN);
   
   // Kết nối WiFi
@@ -103,7 +111,7 @@ void loop() {
       // Publish message ngay khi phát hiện thay đổi
       const char* message = (currentPIRState == HIGH) ? "1" : "0";
       
-      if (client.publish(mqtt_topic, message)) {
+      if (client.publish(mqtt_topic_pir, message)) {
         // LED indicator
         digitalWrite(LED_PIN, currentPIRState);
         
@@ -125,7 +133,7 @@ void loop() {
   if (millis() - lastPublishTime > PUBLISH_INTERVAL) {
     const char* message = (currentPIRState == HIGH) ? "1" : "0";
     
-    if (client.publish(mqtt_topic, message)) {
+    if (client.publish(mqtt_topic_pir, message)) {
       Serial.printf("🔄 Heartbeat: PIR=%s\n", message);
     }
     
@@ -172,12 +180,16 @@ void reconnect_mqtt() {
     // Attempt to connect
     if (client.connect(mqtt_client_id)) {
       Serial.println("✅ MQTT connected!");
-      Serial.printf("   Topic: %s\n", mqtt_topic);
       
-      // Publish initial state
+      // Subscribe to buzzer topic (nhận lệnh từ Python)
+      client.subscribe(mqtt_topic_buzzer);
+      Serial.printf("   📥 Subscribed to: %s\n", mqtt_topic_buzzer);
+      Serial.printf("   📤 Publishing to: %s\n", mqtt_topic_pir);
+      
+      // Publish initial PIR state
       const char* initial_state = (digitalRead(PIR_PIN) == HIGH) ? "1" : "0";
-      client.publish(mqtt_topic, initial_state);
-      Serial.printf("📤 Initial state published: %s\n", initial_state);
+      client.publish(mqtt_topic_pir, initial_state);
+      Serial.printf("📤 Initial PIR state published: %s\n", initial_state);
       
     } else {
       Serial.print("❌ MQTT connection failed, rc=");
@@ -189,13 +201,33 @@ void reconnect_mqtt() {
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  // Callback khi nhận message (không sử dụng trong project này)
+  // Callback khi nhận message từ Python
   Serial.print("📥 Message received on topic: ");
   Serial.println(topic);
   
-  Serial.print("   Payload: ");
+  // Convert payload to string
+  String message = "";
   for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
+    message += (char)payload[i];
   }
-  Serial.println();
+  Serial.printf("   Payload: %s\n", message.c_str());
+  
+  // Xử lý lệnh buzzer/loa
+  if (String(topic) == mqtt_topic_buzzer) {
+    if (message == "1") {
+      // Bật loa cảnh báo
+      digitalWrite(RELAY_PIN, HIGH);
+      relayState = HIGH;
+      Serial.println("🔊 Relay ON - LOA CẢNH BÁO BẬT!");
+    } 
+    else if (message == "0") {
+      // Tắt loa
+      digitalWrite(RELAY_PIN, LOW);
+      relayState = LOW;
+      Serial.println("🔇 Relay OFF - Loa tắt");
+    }
+    else {
+      Serial.printf("⚠️  Unknown buzzer command: %s\n", message.c_str());
+    }
+  }
 }

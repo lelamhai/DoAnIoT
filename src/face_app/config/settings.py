@@ -47,7 +47,7 @@ ENABLE_DETECTION_TRACKING = True  # Enable detection tracking for all people
 ENABLE_STRANGER_ALERTS = True  # Enable stranger detection alerts
 STRANGER_TIME_WINDOW = 60  # Time window in seconds (1 minute)
 STRANGER_THRESHOLD = 10  # Number of stranger detections to trigger alert
-STRANGER_ALERT_COOLDOWN = 300  # Cooldown between alerts (5 minutes)
+STRANGER_ALERT_COOLDOWN = 60  # Cooldown between alerts (1 minute)
 
 # Known Person Detection settings (separate from Stranger)
 ENABLE_KNOWN_PERSON_TRACKING = True  # Enable tracking for known people
@@ -63,7 +63,7 @@ SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")  # Gmail SMTP server
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))  # TLS port
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "leelamhair@gmail.com")  # Your email address
 SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "ctym wxnc eklc frzw")  # App Password (not regular password!)
-RECIPIENT_EMAILS = os.getenv("RECIPIENT_EMAILS", "lelamhai.khtn@gmail.com").split(",") if os.getenv("RECIPIENT_EMAILS") else ["lelamhai.khtn@gmail.com"]  # Comma-separated emails
+RECIPIENT_EMAILS = os.getenv("RECIPIENT_EMAILS", "haill.k23dtcn426@stu.ptit.edu.vn").split(",") if os.getenv("RECIPIENT_EMAILS") else ["haill.k23dtcn426@stu.ptit.edu.vn"]  # Comma-separated emails
 
 # Security note: Use App Passwords for Gmail!
 # 1. Enable 2-Factor Authentication: https://myaccount.google.com/security
@@ -84,7 +84,11 @@ MQTT_BROKER = "broker.hivemq.com"  # Public MQTT broker
 MQTT_PORT = 1883  # Default MQTT port
 MQTT_CLIENT_ID = "face_recognition_app_nhom03"  # Unique client ID
 MQTT_TOPIC_PIR = "iot/nhom03/security/pir"  # PIR sensor topic
+MQTT_TOPIC_BUZZER = "iot/nhom03/security/buzzer"  # Buzzer/Speaker control topic
 MQTT_KEEPALIVE = 60  # Keepalive interval in seconds
+
+# Buzzer settings
+BUZZER_DURATION = 5  # Auto tắt loa sau 5 giây
 
 # Ensure directories exist
 KNOWN_FACES_DIR.mkdir(exist_ok=True)

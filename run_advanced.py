@@ -110,6 +110,22 @@ def main():
                 time_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
                 recognition_repo.insert_event("Stranger", time_str)
                 print(f"📝 Logged: Stranger (Alert Triggered) at {time_str}")
+                
+                # Bật loa cảnh báo qua MQTT (nếu có MQTT client)
+                if 'mqtt_client' in locals() and mqtt_client and mqtt_client.is_connected():
+                    mqtt_client.client.publish(settings.MQTT_TOPIC_BUZZER, "1")
+                    print(f"🔊 Bật loa cảnh báo qua MQTT: {settings.MQTT_TOPIC_BUZZER}")
+                    
+                    # Schedule auto tắt sau BUZZER_DURATION giây
+                    import threading
+                    def auto_off_buzzer():
+                        import time
+                        time.sleep(settings.BUZZER_DURATION)
+                        if mqtt_client and mqtt_client.is_connected():
+                            mqtt_client.client.publish(settings.MQTT_TOPIC_BUZZER, "0")
+                            print(f"🔇 Tắt loa tự động sau {settings.BUZZER_DURATION}s")
+                    
+                    threading.Thread(target=auto_off_buzzer, daemon=True).start()
             
             stranger_monitor = StrangerMonitor(
                 time_window_seconds=settings.STRANGER_TIME_WINDOW,
