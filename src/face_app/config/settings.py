@@ -63,7 +63,7 @@ SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")  # Gmail SMTP server
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))  # TLS port
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "leelamhair@gmail.com")  # Your email address
 SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "ctym wxnc eklc frzw")  # App Password (not regular password!)
-RECIPIENT_EMAILS = os.getenv("RECIPIENT_EMAILS", "haill.k23dtcn426@stu.ptit.edu.vn").split(",") if os.getenv("RECIPIENT_EMAILS") else ["haill.k23dtcn426@stu.ptit.edu.vn"]  # Comma-separated emails
+RECIPIENT_EMAILS = os.getenv("RECIPIENT_EMAILS", "lbleesin123@gmail.com").split(",") if os.getenv("RECIPIENT_EMAILS") else ["lbleesin123@gmail.com"]  # Comma-separated emails
 
 # Security note: Use App Passwords for Gmail!
 # 1. Enable 2-Factor Authentication: https://myaccount.google.com/security

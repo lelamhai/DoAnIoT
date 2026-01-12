@@ -10,7 +10,7 @@ Không lưu ảnh, không log chi tiết (score/frame/box...), chỉ lưu đúng
 
 ## 1) Kiến trúc tổng thể (ASCII)
 
-### 1.1 Luồng realtime nhận diện (Updated với Stranger Alert)
+### 1.1 Luồng realtime nhận diện (Updated với IoT + Buzzer)
 
 ```
 +------------------+     +---------------------+     +----------------------+
@@ -28,9 +28,16 @@ Không lưu ảnh, không log chi tiết (score/frame/box...), chỉ lưu đúng
                               |                                                     |
                               v                                                     v
                     +-------------------+                                 +----------------------+
-                    |  UI Presenter     |                                 | SQLite Repository    |
-                    | draw bbox + label |                                 | insert(name, time)   |
+                    |  UI Presenter     |                                 | Active Control       |
+                    | draw bbox + label |                                 | (PIR-based or manual)|
                     +-------------------+                                 +----------+-----------+
+                                                                                     |
+                                                                    (if active=True)
+                                                                                     v
+                                                                          +----------------------+
+                                                                          | SQLite Repository    |
+                                                                          | insert(name, time)   |
+                                                                          +----------+-----------+
                                                                                      |
                                                                                      v
                                                                           +----------------------+
@@ -38,12 +45,18 @@ Không lưu ảnh, không log chi tiết (score/frame/box...), chỉ lưu đúng
                                                                           | Track stranger count |
                                                                           +----------+-----------+
                                                                                      |
-                                                                    (threshold exceeded ≥10/60s)
+                                                                    (threshold ≥10/60s, cooldown 60s)
                                                                                      |
                                                                                      v
                                                                           +----------------------+
-                                                                          | Email Service (SMTP) |
-                                                                          | Send alert to family |
+                                                                          | Email + MQTT Buzzer  |
+                                                                          | Alert to family      |
+                                                                          +----------+-----------+
+                                                                                     |
+                                                                                     v
+                                                                          +----------------------+
+                                                                          | ESP32 Relay Control  |
+                                                                          | Buzzer ON 5s → OFF   |
                                                                           +----------------------+
 ```
 
@@ -74,8 +87,9 @@ Không lưu ảnh, không log chi tiết (score/frame/box...), chỉ lưu đúng
 │ - filesystem dataset loader (known_faces/<name>/*.jpg)                      │
 │ - OpenCV camera adapter                                                      │
 │ - SQLite repository (chỉ name + time)                                       │
-│ - Stranger Monitor (sliding window tracking)                                 │
+│ - Stranger Monitor (sliding window tracking + cooldown)                      │
 │ - Email Notification Service (SMTP for alerts)                               │
+│ - MQTT Client (IoT communication - PIR sensor + Buzzer control)              │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -341,7 +355,7 @@ Có thể kết hợp cả 2.
 ENABLE_STRANGER_ALERTS = True
 STRANGER_TIME_WINDOW = 60  # seconds
 STRANGER_THRESHOLD = 10
-STRANGER_ALERT_COOLDOWN = 300  # seconds
+STRANGER_ALERT_COOLDOWN = 60  # seconds (1 minute cooldown)
 
 ENABLE_KNOWN_PERSON_TRACKING = True
 KNOWN_PERSON_TIME_WINDOW = 60  # seconds
@@ -377,11 +391,13 @@ python run_advanced.py
 
 ---
 
-### Phase 6 — IoT Integration với ESP32 + PIR (COMPLETED ✅)
+### Phase 6 — IoT Integration với ESP32 + PIR + Buzzer (COMPLETED ✅)
 
 - [x] **MQTT Communication**: Kết nối với ESP32 qua MQTT
   - Broker: broker.hivemq.com (public)
-  - Topic: `iot/nhom03/security/pir`
+  - Topics: 
+    - `iot/nhom03/security/pir` (PIR sensor → Python)
+    - `iot/nhom03/security/buzzer` (Python → Buzzer control)
   - Protocol: MQTT 1883
   - Client ID: face_recognition_app_nhom03
   
@@ -393,18 +409,31 @@ python run_advanced.py
 - [x] **PIR Sensor Integration**: ESP32 với cảm biến PIR HC-SR501
   - PIR phát hiện chuyển động → Gửi "1" → active = True
   - PIR không phát hiện → Gửi "0" → active = False
+  - GPIO: 27 (PIR sensor input)
   - Debounce: 500ms
   - Heartbeat: Gửi message mỗi 1 giây
+
+- [x] **Buzzer/Speaker Control**: Relay điều khiển loa cảnh báo
+  - GPIO: 26 (Relay control)
+  - Khi người lạ xác nhận (≥10/60s):
+    - Python publish "1" → iot/nhom03/security/buzzer
+    - ESP32 nhận "1" → Relay ON → Loa kêu
+    - Sau 5 giây → Python publish "0" → Relay OFF
+  - Hardware: Relay module + Speaker/Buzzer
   
 - [x] **ESP32 Arduino Code**: Firmware hoàn chỉnh
   - WiFi connection với auto-retry
-  - MQTT client với auto-reconnect
-  - PIR reading với debounce logic
-  - LED indicator (GPIO 2)
-  - Serial logging chi tiết
-  - 30 giây PIR warm-up time
-
-**Architecture:**
+  - MQTT client với auto-reconnect◀─────────▶│ MQTT Broker     │
+│  HC-SR501   │   GPIO27  │    + Relay   │  Pub/Sub  │ (HiveMQ.com)    │
+│             │           │    GPIO26    │           │                 │
+└─────────────┘           └──────┬───────┘           └────────┬────────┘
+                                 │                             │
+                                 │ Relay                       │ Subscribe
+                                 ▼                             ▼
+                          ┌─────────────┐         ┌─────────────────────┐
+                          │   Speaker   │         │  Python App         │
+                          │   Buzzer    │         │  (Face Recognition) │
+                          └─────────────┘
 ```
 ┌─────────────┐   WiFi    ┌──────────────┐   MQTT    ┌─────────────────┐
 │ PIR Sensor  │──────────▶│    ESP32     │──────────▶│ MQTT Broker     │
@@ -418,10 +447,7 @@ python run_advanced.py
                                                     └─────────────────────┘
 ```
 
-**MQTT Message Flow:**
-```python
-# ESP32 → MQTT Broker → Python App
-
+**Flow 1: PIR Control (ESP32 → Python)
 PIR = HIGH (Motion detected)
   → ESP32 publish "1" to iot/nhom03/security/pir
   → Python receives "1"
@@ -433,17 +459,27 @@ PIR = LOW (No motion)
   → Python receives "0"
   → active = False
   → Disable DB/Email (display only)
-```
 
-**Python MQTT Configuration:**
-```python
-# settings.py
-ENABLE_PIR_CONTROL = True
-MQTT_BROKER = "broker.hivemq.com"
-MQTT_PORT = 1883
-MQTT_CLIENT_ID = "face_recognition_app_nhom03"
-MQTT_TOPIC_PIR = "iot/nhom03/security/pir"
+# Flow 2: Buzzer Control (Python → ESP32)
+Stranger confirmed (≥10 detections/60s)
+  → Python sends email alert
+  → Python publish "1" to iot/nhom03/security/buzzer
+  → ESP32 receives "1"
+  → GPIO 26 = HIGH → Relay ON → Speaker ON 🔊
+  → After 5 seconds
+  → Python publish "0" to iot/nhom03/security/buzzer
+  → ESP32 receives "0"
+  → GPIO 26 = LOW → Relay OFF → Speaker OFF 🔇
+  → active = False
+  → Disable DB/Email (display only)
+```TOPIC_BUZZER = "iot/nhom03/security/buzzer"
 MQTT_KEEPALIVE = 60
+
+# Buzzer settings
+BUZZER_DURATION = 5  # Auto tắt loa sau 5 giây
+
+# Stranger alert cooldown
+STRANGER_ALERT_COOLDOWN = 60  # 1 minute between alerts
 ```
 
 **ESP32 Configuration:**
@@ -452,8 +488,48 @@ MQTT_KEEPALIVE = 60
 const char* ssid = "YOUR_WIFI_SSID";
 const char* password = "YOUR_WIFI_PASSWORD";
 const char* mqtt_server = "broker.hivemq.com";
-const char* mqtt_topic = "iot/nhom03/security/pir";
-const int PIR_PIN = 13;  // GPIO 13
+const char* mqtt_topic_pir = "iot/nhom03/security/pir";
+const char* mqtt_topic_buzzer = "iot/nhom03/security/buzzer";
+const int PIR_PIN = 27;    // GPIO 27
+const int RELAY_PIN = 26;  // GPIO 26
+```
+
+**Hardware Connection (Breadboard):**
+```
+Breadboard Power Rails:
+- Dòng 20: +5V (VCC)
+- Dòng 45: GND (-)
+
+ESP32:
+  VIN     → Dòng 20 (5V)
+  GND     → Dòng 45 (GND)
+  GPIO 27 → PIR OUT
+  GPIO 26 → Relay IN
+
+PIR HC-SR501:
+  VCC → Dòng 20 (5V)
+  OUT → ESP32 GPIO 27
+  GND → Dòng 45 (GND)
+
+Relay Module:
+  DC+  → Dòng PIR:
+# - ESP32: Khi PIR trigger → "📤 Published: 1"
+# - Python: "🟢 PIR: Motion detected → ACTIVE = True"
+# - ESP32: Khi PIR idle → "📤 Published: 0"  
+# - Python: "🔴 PIR: No motion → ACTIVE = False"
+
+# 5. Quan sát Buzzer (khi người lạ ≥10 lần/60s):
+# - Python: "🚨 CẢNH BÁO: Phát hiện 10 người lạ"
+# - Python: "🔊 Bật loa cảnh báo qua MQTT"
+# - ESP32: "📥 Message: 1" → "🔊 Relay ON - LOA CẢNH BÁO BẬT!"
+# - [5 seconds later]
+# - Python: "🔇 Tắt loa tự động sau 5s"
+# - ESP32: "📥 Message: 0" → "🔇 Relay OFF - Loa tắt
+  NC   → Not connected
+
+Speaker/Buzzer:
+  (+)  → Relay NO
+  (-)  → Dòng 45 (GND)O 13
 ```
 
 **Hardware Connection:**
@@ -489,11 +565,12 @@ MQTT: Connected ✅
 ACTIVE: ON (DB+Email) 🟢  ← Điều khiển bởi PIR
 ```
 
-**Manual Override:**
-- Phím **'A'**: Toggle active manually (khi không có PIR)
-- Phím **'R'**: Reload known faces
-- Phím **'Q'**: Quit application
+**Manual Override:**Email + Bật loa 5s ✅
+- Known Person ≥10 lần/60s → Ghi DB ✅
+- Cooldown giữa 2 cảnh báo: 60 giây
 
+# Khi active = False (PIR = 0):
+- Stranger → Chỉ hiển thị, không ghi DB, không email, không loa
 **Logic Tổng Hợp:**
 ```python
 # Khi active = True (PIR = 1 hoặc manual):
@@ -505,12 +582,16 @@ ACTIVE: ON (DB+Email) 🟢  ← Điều khiển bởi PIR
 - Known Person → Chỉ hiển thị, không ghi DB ❌
 ```
 
-**Deliverable:**
-- ✅ ESP32 firmware hoàn chỉnh với PIR + MQTT
-- ✅ Python MQTT client non-blocking
+**Deliverable:** + Buzzer control
+- ✅ Python MQTT client non-blocking (bidirectional)
 - ✅ Active control variable điều khiển toàn bộ logging
-- ✅ Real-time PIR status trên UI
-- ✅ Manual override capability
+- ✅ Buzzer/Speaker alert khi phát hiện người lạ
+- ✅ Auto tắt loa sau 5 giây
+- ✅ Cooldown 60 giây giữa các cảnh báo
+- ✅ Real-time PIR + Active status trên UI
+- ✅ Manual override capability (phím 'A')
+- ✅ Comprehensive hardware wiring diagram
+- ✅ Completide capability
 - ✅ Comprehensive documentation (README.md)
 
 ---
