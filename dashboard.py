@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import sys
 
 # Add src to path
-src_path = Path(__file__).parent.parent / "src"
+src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
 from face_app.config.settings import DB_PATH
