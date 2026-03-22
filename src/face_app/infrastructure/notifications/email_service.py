@@ -56,7 +56,7 @@ class EmailNotificationService:
             return False
         
         # Create email content
-        subject = f"🚨 CẢNH BÁO: Phát hiện {stranger_count} người lạ!"
+        subject = f"🚨 CẢNH BÁO: Phát hiện người lạ!"
         
         body = f"""
 Hệ thống nhận diện khuôn mặt phát hiện hoạt động bất thường!

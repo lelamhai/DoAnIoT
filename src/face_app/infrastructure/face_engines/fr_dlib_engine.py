@@ -1,6 +1,12 @@
 """Face Recognition Engine adapter using face_recognition (dlib)."""
 from typing import List
 import numpy as np
+import warnings
+
+# Suppress the annoying face_recognition_models warning
+warnings.filterwarnings('ignore', message='.*face_recognition_models.*')
+warnings.filterwarnings('ignore', message='.*pkg_resources.*')
+
 import face_recognition
 from face_app.domain.ports import FaceEnginePort
 from face_app.domain.entities import BoundingBox

@@ -2,6 +2,12 @@
 from typing import List, Tuple
 from pathlib import Path
 import numpy as np
+import warnings
+
+# Suppress face_recognition_models warnings
+warnings.filterwarnings('ignore', message='.*face_recognition_models.*')
+warnings.filterwarnings('ignore', message='.*pkg_resources.*')
+
 import face_recognition
 from PIL import Image
 from face_app.domain.ports import KnownFaceRepoPort

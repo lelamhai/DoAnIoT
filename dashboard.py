@@ -12,6 +12,17 @@ sys.path.insert(0, str(src_path))
 
 from face_app.config.settings import DB_PATH
 
+# Hide Streamlit menu and Deploy button
+st.markdown("""
+    <style>
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
+        .stDeployButton {display: none;}
+        [data-testid="stToolbar"] {display: none;}
+    </style>
+    """, unsafe_allow_html=True)
+
 
 def load_events(limit: int = 100):
     """Load recognition events from database."""
